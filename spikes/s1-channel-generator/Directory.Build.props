@@ -1,0 +1,9 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+  <ItemGroup Condition="'$(IsSpikeTestProject)' == 'true'">
+    <CompilerVisibleProperty Include="SpikeOmitInheritsTests" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Spike.Channels/Spike.Channels.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Spike.Channels.Generator/Spike.Channels.Generator.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

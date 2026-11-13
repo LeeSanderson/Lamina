@@ -1,0 +1,3 @@
+[Spike.{XunitV3,TUnit,NUnit}/**.cs]
+# Spec method names describe behaviour; an Async suffix would add noise to every test name.
+dotnet_diagnostic.S4261.severity = none

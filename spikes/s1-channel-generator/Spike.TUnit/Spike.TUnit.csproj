@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsSpikeTestProject>true</IsSpikeTestProject>
+    <OutputType>Exe</OutputType>
+    <!-- TUnit's discovery generator cannot see classes emitted by another generator; reflection discovery can. -->
+    <EnableTUnitSourceGeneration>false</EnableTUnitSourceGeneration>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+</Project>

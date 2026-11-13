@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Spike.Channels/Spike.Channels.csproj" />
+  <Project Path="Spike.Channels.Generator/Spike.Channels.Generator.csproj" />
+  <Project Path="Spike.XunitV3/Spike.XunitV3.csproj" />
+  <Project Path="Spike.TUnit/Spike.TUnit.csproj" />
+  <Project Path="Spike.NUnit/Spike.NUnit.csproj" />
+</Solution>
