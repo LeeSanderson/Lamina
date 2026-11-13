@@ -38,12 +38,11 @@ This is a significant architectural change that doesn't align with the
 project's focus on content authoring. Theming is a concern for downstream
 consumers who embed or redistribute the output.
 
-```ts
-// The current ThemeConfig interface is not designed for runtime switching:
-interface ThemeConfig {
-  colors: ColorPalette; // single palette, resolved at build time
-  fonts: FontStack;
-}
+```csharp
+// The current ThemeConfig is not designed for runtime switching:
+public sealed record ThemeConfig(
+    ColorPalette Colors, // single palette, resolved at build time
+    FontStack Fonts);
 ```
 
 ## Prior requests

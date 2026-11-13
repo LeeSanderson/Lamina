@@ -63,10 +63,10 @@ submitForm
 - Show UI structure as a component tree, including state and module boundaries that matter:
 
 ```text
-<SessionPage> (apps/example/src/routes/session.tsx)
-  useSessionEvents()
+<SessionPage> (src/Example.Web/Pages/Session.razor)
+  @inject SessionEvents
   <SessionToolbar>
-    <RunSkillButton> (packages/ui)
+    <RunSkillButton> (src/Example.Ui)
 ```
 
 - Show file responsibility or a broad refactor as a shallow file tree:
@@ -96,7 +96,7 @@ For a component change:
 
 ```diff
  <SessionPage>
-   useSessionEvents()
+   @inject SessionEvents
    <SessionToolbar>
 +    <RunSkillButton />
    <SessionTimeline>
@@ -108,12 +108,12 @@ For a file-layout change:
 ```diff
  src/
  ├── commands/
-+│   └── show-me.ts       # expands the slash command
++│   └── ShowMe.cs        # expands the slash command
  ├── sessions/
--└── transport.ts
+-└── Transport.cs
 +└── transport/
-+    ├── client.ts
-+    └── stream.ts
++    ├── Client.cs
++    └── Stream.cs
 ```
 
 For a call-tree or call-stack change:
@@ -142,10 +142,11 @@ For a state or control-flow change:
 
 - Show the whole block when most of it is new, when omitted context would hide ownership or order, or when the user needs a copyable target shape:
 
-```ts
-function expandSkill(command: string): string {
-  const skillName = command.slice(1);
-  return `use the ${skillName} skill`;
+```csharp
+public static string ExpandSkill(string command)
+{
+    var skillName = command[1..];
+    return $"use the {skillName} skill";
 }
 ```
 

@@ -12,7 +12,7 @@ Pure computation, in-memory state, no I/O. Always deepenable: merge the modules 
 
 ### 2. Local-substitutable
 
-Dependencies that have local test stand-ins (PGLite for Postgres, in-memory filesystem). Deepenable if the stand-in exists. The deepened module is tested with the stand-in running in the test suite. The seam is internal; no port at the module's external interface.
+Dependencies that have local test stand-ins (Testcontainers or SQLite in-memory for a database, `System.IO.Abstractions.TestingHelpers` for the filesystem, `FakeTimeProvider` for time). Deepenable if the stand-in exists. The deepened module is tested with the stand-in running in the test suite. The seam is internal; no port at the module's external interface.
 
 ### 3. Remote but owned (Ports & Adapters)
 

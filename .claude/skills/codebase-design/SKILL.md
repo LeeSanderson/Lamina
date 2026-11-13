@@ -70,25 +70,27 @@ Good interfaces make testing natural:
 
 1. **Accept dependencies, don't create them.**
 
-   ```typescript
+   ```csharp
    // Testable
-   function processOrder(order, paymentGateway) {}
+   public class OrderProcessor(IPaymentGateway paymentGateway) { }
 
    // Hard to test
-   function processOrder(order) {
-     const gateway = new StripeGateway();
+   public class OrderProcessor
+   {
+       private readonly StripeGateway _gateway = new();
    }
    ```
 
 2. **Return results, don't produce side effects.**
 
-   ```typescript
+   ```csharp
    // Testable
-   function calculateDiscount(cart): Discount {}
+   public static Discount CalculateDiscount(Cart cart) { }
 
    // Hard to test
-   function applyDiscount(cart): void {
-     cart.total -= discount;
+   public static void ApplyDiscount(Cart cart)
+   {
+       cart.Total -= discount;
    }
    ```
 
@@ -105,7 +107,7 @@ Good interfaces make testing natural:
 ## Rejected framings
 
 - **Depth as ratio of implementation-lines to interface-lines** (Ousterhout): rewards padding the implementation. We use depth-as-leverage instead.
-- **"Interface" as the TypeScript `interface` keyword or a class's public methods**: too narrow: interface here includes every fact a caller must know.
+- **"Interface" as the C# `interface` keyword or a class's public methods**: too narrow: interface here includes every fact a caller must know.
 - **"Boundary"**: overloaded with DDD's bounded context. Say **seam** or **interface**.
 
 ## Going deeper
