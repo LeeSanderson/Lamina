@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Coding standards for every project (Plan.md §9.1). The package is pre-1.0, so every update is a reviewed change.
+      The version is deliberately not written as an exact range ([x]): NuGet already restores exactly this version,
+      and dotnet outdated never reports updates past an exact range. See docs/spikes/s7-repo-scaffold.md.
+    -->
+    <GlobalPackageReference Include="Opinionated.DotNet.CodingStandards" Version="0.0.21" />
+  </ItemGroup>
+</Project>
