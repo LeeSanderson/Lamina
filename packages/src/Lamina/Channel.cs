@@ -8,5 +8,5 @@ public static class Channel
     /// <summary>
     /// The channel used when a spec names none.
     /// </summary>
-    public const string Default = "api";
+    public static string Default => "api";
 }

