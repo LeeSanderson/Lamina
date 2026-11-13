@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Lamina/Lamina.csproj" />
+    <Project Path="src/S7.Generator/S7.Generator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/S7.Consumer/S7.Consumer.csproj" />
+  </Folder>
+</Solution>
