@@ -55,3 +55,11 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+## Claude Code agent worktrees
+.claude/worktrees/
+
+## IDE state
+.vs/
+.idea/
+*.user
