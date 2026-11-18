@@ -1,0 +1,11 @@
+<Project>
+  <!-- PROTOTYPE: local versions so the prototype doesn't touch the root props. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <GlobalPackageReference Include="Opinionated.DotNet.CodingStandards" Version="0.0.21" />
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.15" />
+  </ItemGroup>
+</Project>

