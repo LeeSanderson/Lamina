@@ -17,7 +17,14 @@ public sealed class ApiShoppingDriver(InMemoryFolio folio) : IShoppingDriver
     public Task<PlacedOrder> PlaceOrder(string aliasedCustomer, string bookId, string aliasedCard) =>
         Task.FromResult(ToPlaced(folio.PlaceOrder(aliasedCustomer, bookId, aliasedCard)));
 
-    public Task<PlacedOrder> GetOrder(string aliasedCustomer, string orderId) => Task.FromResult(ToPlaced(folio.GetOrder(orderId)));
+    private int reads;
+
+    // PROTOTYPE hack for the broken specs: a customer named "Outage..." sees the BFF answer 503 on the first three reads,
+    // so Eventually's observation history shows the probe throwing, then a real (but wrong) state.
+    public Task<PlacedOrder> GetOrder(string aliasedCustomer, string orderId) =>
+        aliasedCustomer.StartsWith("Outage", StringComparison.Ordinal) && Interlocked.Increment(ref reads) <= 3
+            ? throw new HttpRequestException("Response status code does not indicate success: 503 (Service Unavailable).")
+            : Task.FromResult(ToPlaced(folio.GetOrder(orderId)));
 
     private static PlacedOrder ToPlaced(Order o) => new(o.Id, o.Status, o.Reason);
 }

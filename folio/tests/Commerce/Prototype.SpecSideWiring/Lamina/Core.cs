@@ -96,6 +96,8 @@ public sealed class LaminaBuilder
         services.AddSingleton(channelModel);
         services.AddSingleton(this);
         services.AddScoped<SpecScopeHolder>();
+        services.AddSingleton(EventuallyOptions.FromEnvironment());
+        services.AddScoped<Eventually>();
         services.AddScoped(sp => sp.GetRequiredService<SpecScopeHolder>().Scope ?? throw new InvalidOperationException("No spec scope."));
         var sut = (sutFactory ?? throw new InvalidOperationException("No SUT. Call UseSut(...)."))();
         services.AddSingleton(sut);
@@ -181,6 +183,16 @@ public sealed class SpecScope(string testId, string channel, string specName, As
 
     public void Note(string note) => notes.Enqueue(note);
 
+    /// <summary>The footer every failing spec gets, whatever raised the failure.</summary>
+    public string Describe()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("Test ").Append(TestId).Append(" on '").Append(Channel).Append("' · aliases: ")
+          .Append(Aliases.IsEmpty ? "(none)" : Aliases.ToString());
+        foreach (var note in notes) sb.AppendLine().Append("Note: ").Append(note);
+        return sb.ToString();
+    }
+
     public ValueTask DisposeAsync() => services.DisposeAsync();
 }
 
@@ -198,26 +210,10 @@ public sealed class Aliases(string testId)
         return alias;
     });
 
+    public bool IsEmpty => forward.IsEmpty;
+
     public string Original(string alias) => backward.GetValueOrDefault(alias, alias);
 
     public override string ToString() => string.Join(", ", forward.Select(p => $"{p.Key} -> {p.Value}"));
 }
 
-/// <summary>Stand-in only; "Eventually and failure diagnostics" designs the real one.</summary>
-public static class Eventually
-{
-    public static async Task<T> Until<T>(Func<Task<T>> probe, Func<T, bool> condition, TimeSpan within, string because)
-    {
-        var deadline = DateTimeOffset.UtcNow + within;
-        T last;
-        do
-        {
-            last = await probe();
-            if (condition(last)) return last;
-            await Task.Delay(50);
-        }
-        while (DateTimeOffset.UtcNow < deadline);
-
-        throw new TimeoutException($"Expected {because} within {within.TotalSeconds}s. Last observed: {last}");
-    }
-}

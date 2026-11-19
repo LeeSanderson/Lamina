@@ -18,6 +18,9 @@ public abstract class LaminaDsl
 
     protected SpecScope Scope => scope ?? throw new InvalidOperationException("DSL used outside a spec scope.");
 
+    // Scoped like the DSL, so it shares the spec's scope. A driver that has to wait injects Eventually instead.
+    protected Eventually Eventually => Scope.Services.GetRequiredService<Eventually>();
+
     protected string Alias(string name) => Scope.Aliases.For(name);
 
     protected void Remember<T>(Key<T> key, T value) where T : notnull => Scope.Remember(key, value);

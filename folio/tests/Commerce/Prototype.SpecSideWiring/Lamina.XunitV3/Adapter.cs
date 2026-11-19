@@ -52,15 +52,23 @@ public abstract class LaminaSpec<TSuite> : IAsyncLifetime
         scope = fixture.Run.CreateScope(channel, test.TestDisplayName);
     }
 
+    // Diagnostics for EVERY failure, not just Eventually's: by step 9 of xUnit's pipeline TestState holds the provisional
+    // result. Throwing here joins the test's exception aggregator, so the footer lands inside the failure message
+    // (console, TRX). Cost: MTP reports an *error* rather than an assertion *failure* (see the xUnit research ticket).
+    // The footer also goes to the test output on every run, pass or fail, so passing specs still show their test ID.
     public async ValueTask DisposeAsync()
     {
-        var output = TestContext.Current.TestOutputHelper;
-        output?.WriteLine($"Test {Scope.TestId} on '{Scope.Channel}' · aliases: {Scope.Aliases}");
-        foreach (var note in Scope.Notes) output?.WriteLine(note);
+        var context = TestContext.Current;
+        var footer = Scope.Describe();
+        context.TestOutputHelper?.WriteLine(footer);
         await Scope.DisposeAsync();
         GC.SuppressFinalize(this);
+        if (context.TestState?.Result == TestResult.Failed) throw new LaminaDiagnosticsException(footer);
     }
 }
+
+/// <summary>Carries the spec scope's footer into a failing spec's message. Never thrown for a passing spec.</summary>
+public sealed class LaminaDiagnosticsException(string footer) : Exception(footer);
 
 /// <summary>Input to the channel generator (not built in this prototype; see Generated/).</summary>
 [AttributeUsage(AttributeTargets.Class)]
