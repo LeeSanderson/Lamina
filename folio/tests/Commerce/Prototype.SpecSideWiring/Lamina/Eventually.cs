@@ -14,6 +14,7 @@
 //    default 1. The message shows both numbers when the multiplier isn't 1.
 //  - The message carries the expectation and what was observed. It does NOT carry the test ID or aliases: the adapter
 //    appends those to every failing spec (Eventually or not) in one place. See Lamina.XunitV3/Adapter.cs.
+//  - Aliases in the rendered value are annotated with their original name: "Dune (Dune-k3f9)".
 //  - Wall clock only (TimeProvider.System): a spec's per-test time offset must never stretch or shrink a wait.
 using System.Diagnostics;
 using System.Text;
@@ -33,7 +34,7 @@ public sealed record EventuallyOptions(double TimeoutMultiplier)
 
 public sealed class EventuallyFailedException(string message) : Exception(message);
 
-public sealed class Eventually(EventuallyOptions options)
+public sealed class Eventually(EventuallyOptions options, SpecScope scope)
 {
     public Task<T> Until<T>(Func<Task<T>> probe, Func<T, bool> condition, TimeSpan within, string because) =>
         Poll(probe, value => condition(value) ? null : string.Empty, within, because);
@@ -50,7 +51,7 @@ public sealed class Eventually(EventuallyOptions options)
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    return OneLine(ex.Message);
+                    return scope.Aliases.Annotate(OneLine(ex.Message));
                 }
             },
             within,
@@ -75,11 +76,11 @@ public sealed class Eventually(EventuallyOptions options)
                 var value = await probe();
                 why = check(value);
                 if (why is null) return value;
-                rendered = Render(value);
+                rendered = scope.Aliases.Annotate(Render(value));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                rendered = $"probe threw {ex.GetType().Name}: {OneLine(ex.Message)}";
+                rendered = scope.Aliases.Annotate($"probe threw {ex.GetType().Name}: {OneLine(ex.Message)}");
                 why = null;
             }
 

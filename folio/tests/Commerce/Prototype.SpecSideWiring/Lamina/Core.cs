@@ -212,6 +212,10 @@ public sealed class Aliases(string testId)
 
     public bool IsEmpty => forward.IsEmpty;
 
+    /// <summary>For diagnostics: "...Dune-k3f9..." becomes "...Dune (Dune-k3f9)...". Longest alias first.</summary>
+    public string Annotate(string text) =>
+        backward.OrderByDescending(p => p.Key.Length).Aggregate(text, (t, p) => t.Replace(p.Key, $"{p.Value} ({p.Key})", StringComparison.Ordinal));
+
     public string Original(string alias) => backward.GetValueOrDefault(alias, alias);
 
     public override string ToString() => string.Join(", ", forward.Select(p => $"{p.Key} -> {p.Value}"));
