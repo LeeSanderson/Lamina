@@ -14,8 +14,8 @@ public sealed class ApiCatalogueDriver(InMemoryFolio folio) : ICatalogueDriver
 
 public sealed class ApiShoppingDriver(InMemoryFolio folio) : IShoppingDriver
 {
-    public Task<PlacedOrder> PlaceOrder(string aliasedCustomer, string bookId, string aliasedCard) =>
-        Task.FromResult(ToPlaced(folio.PlaceOrder(aliasedCustomer, bookId, aliasedCard)));
+    public async Task<PlacedOrder> PlaceOrder(string aliasedCustomer, string bookId, string aliasedCard) =>
+        ToPlaced(await folio.PlaceOrder(aliasedCustomer, bookId, aliasedCard));
 
     private int reads;
 
@@ -27,28 +27,4 @@ public sealed class ApiShoppingDriver(InMemoryFolio folio) : IShoppingDriver
             : Task.FromResult(ToPlaced(folio.GetOrder(orderId)));
 
     private static PlacedOrder ToPlaced(Order o) => new(o.Id, o.Status, o.Reason);
-}
-
-// The team's typed stub (Plan.md §6.5): domain-aware, so it belongs to Folio, built on Lamina.Stubs in the real thing.
-public sealed class PaymentProviderStub(InMemoryFolio folio)
-{
-    public Task WillDecline(string aliasedCard)
-    {
-        folio.SetProviderRule(aliasedCard, ProviderRule.Decline);
-        return Task.CompletedTask;
-    }
-
-    public Task DropsConnection(string aliasedCard, int times)
-    {
-        folio.SetProviderRule(aliasedCard, ProviderRule.DropOnce);
-        return Task.CompletedTask;
-    }
-
-    public Task<IReadOnlyList<ProviderCreate>> Creates(string aliasedCard) => Task.FromResult(folio.ProviderJournal(aliasedCard));
-
-    public Task SendConfirmedWebhook(string aliasedCard)
-    {
-        folio.ConfirmPaymentWebhook(aliasedCard);
-        return Task.CompletedTask;
-    }
 }

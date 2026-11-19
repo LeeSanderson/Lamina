@@ -57,16 +57,25 @@ public sealed class ShoppingDsl(IShoppingDriver driver) : LaminaDsl
 }
 
 // A DSL over a stub, not over a capability: stubs don't vary by channel, so the DSL takes the team's typed stub directly.
+// Aliasing happens here, as for drivers: the stub only ever sees aliased values, and Lamina refuses a rule that isn't.
 public sealed class PaymentProviderDsl(PaymentProviderStub stub) : LaminaDsl
 {
     public Task WillDecline(string card) => stub.WillDecline(Alias(card));
 
-    public Task DropsConnection(string card, int times = 1) => stub.DropsConnection(Alias(card), times);
+    public Task DropsConnection(string card, int times) => stub.LosesAnswer(Alias(card), times);
 
+    public Task IsUnavailable(string card, int times) => stub.IsUnavailable(Alias(card), times);
+
+    // Wait until the provider has accepted a create for this card, then confirm THAT payment, taking its reference
+    // and provider ID from the journal. The spec never needs to know the order ID.
     public async Task ConfirmsPayment(string card)
     {
-        await Eventually.Until(() => stub.Creates(Alias(card)), c => c.Count > 0, within: TimeSpan.FromSeconds(5), because: $"the provider should receive a payment for {card}");
-        await stub.SendConfirmedWebhook(Alias(card));
+        var creates = await Eventually.Until(
+            () => stub.Creates(Alias(card)),
+            c => c.Any(x => x.Accepted),
+            within: TimeSpan.FromSeconds(5),
+            because: $"the provider should accept a payment for {card}");
+        await stub.SendConfirmed(creates.Last(x => x.Accepted));
     }
 
     public async Task ConfirmRetriedWithSameIdempotencyKey(string card)
@@ -82,4 +91,10 @@ public sealed class PaymentProviderDsl(PaymentProviderStub stub) : LaminaDsl
             within: TimeSpan.FromSeconds(5),
             because: $"the payment for {card} should be retried with the same idempotency key");
     }
+
+    public async Task ConfirmCharged(string card, long pence) =>
+        Assert.All(await stub.Creates(Alias(card)), c => Assert.Equal(pence, c.Amount));
+
+    // PROTOTYPE only, to show the guard: a rule on a raw (un-aliased) card would match every parallel spec's traffic.
+    public Task WillDeclineUnaliased(string card) => stub.WillDecline(card);
 }

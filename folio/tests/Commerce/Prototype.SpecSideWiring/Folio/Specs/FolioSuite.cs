@@ -5,6 +5,7 @@ using Folio.Commerce.Acceptance.Dsl;
 using Folio.Commerce.Acceptance.FakeSut;
 using Folio.Commerce.Acceptance.Specs;
 using Lamina;
+using Lamina.Stubs;
 using Lamina.XunitV3;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

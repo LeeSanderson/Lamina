@@ -16,6 +16,7 @@ public abstract class LaminaSuite
         Configure(builder);
         var run = builder.Build();
         await run.Sut.WaitUntilReadyAsync(CancellationToken.None);
+        foreach (var started in builder.Started) await started(run.Services);
         return run;
     }
 }
@@ -36,6 +37,14 @@ public sealed class LaminaBuilder
 
     internal IServiceCollection Services => services;
     internal IReadOnlySet<Type> Capabilities => capabilities;
+    internal List<Func<IServiceProvider, Task>> Started { get; } = [];
+
+    // Run-level set-up after the SUT is ready, before any spec (stub defaults use it).
+    internal LaminaBuilder OnStarted(Func<IServiceProvider, Task> started)
+    {
+        Started.Add(started);
+        return this;
+    }
 
     public LaminaBuilder UseSut(Func<ISystemUnderTest> factory)
     {
@@ -62,14 +71,6 @@ public sealed class LaminaBuilder
             services.AddScoped(sp => (TCapability)ResolveCapability(sp, typeof(TCapability), sp.GetRequiredService<SpecScope>().Channel));
         }
 
-        return this;
-    }
-
-    // Stubs are channel-independent: one per external system, scoped per spec so its rules and journal are per spec.
-    public LaminaBuilder AddStub<TStub>()
-        where TStub : class
-    {
-        services.AddScoped<TStub>();
         return this;
     }
 
@@ -125,6 +126,8 @@ public sealed class LaminaRun(ServiceProvider root, ISystemUnderTest sut, Channe
     private readonly ConcurrentDictionary<string, byte> testIds = new(StringComparer.Ordinal);
 
     public ISystemUnderTest Sut => sut;
+
+    internal IServiceProvider Services => root;
 
     public SpecScope CreateScope(string? channel, string specName)
     {

