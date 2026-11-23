@@ -4,10 +4,12 @@ namespace Lamina;
 
 /// <summary>
 /// Where SUT packages register their named providers. <c>Lamina:Sut:Provider</c> chooses one.
+/// When it's unset, <c>aspire</c> is chosen if registered, otherwise the first provider registered.
 /// </summary>
 public sealed class SutBuilder
 {
     private const string ProviderKey = "Lamina:Sut:Provider";
+    private const string AspireProvider = "aspire";
 
     private readonly List<KeyValuePair<string, Func<IServiceProvider, ISutProvider>>> _providers = [];
 
@@ -34,7 +36,7 @@ public sealed class SutBuilder
         }
 
         var name = Configuration[ProviderKey];
-        var chosen = string.IsNullOrEmpty(name) ? _providers[0] : _providers.Find(p => IsNamed(p, name));
+        var chosen = string.IsNullOrEmpty(name) ? DefaultProvider() : _providers.Find(p => IsNamed(p, name));
         if (chosen.Value is null)
         {
             throw new InvalidOperationException(
@@ -42,6 +44,13 @@ public sealed class SutBuilder
         }
 
         return chosen.Value(services);
+    }
+
+    // Aspire starts the system per run, so it's the default whenever a suite registers it; otherwise the first registered provider is.
+    private KeyValuePair<string, Func<IServiceProvider, ISutProvider>> DefaultProvider()
+    {
+        var aspire = _providers.Find(p => IsNamed(p, AspireProvider));
+        return aspire.Value is null ? _providers[0] : aspire;
     }
 
     private static bool IsNamed(KeyValuePair<string, Func<IServiceProvider, ISutProvider>> provider, string name) =>

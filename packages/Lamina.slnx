@@ -5,6 +5,7 @@
     <Project Path="src/Lamina.Stubs.WireMock/Lamina.Stubs.WireMock.csproj" />
     <Project Path="src/Lamina.Stubs/Lamina.Stubs.csproj" />
     <Project Path="src/Lamina.Sut.Aspire/Lamina.Sut.Aspire.csproj" />
+    <Project Path="src/Lamina.Sut.Deployed/Lamina.Sut.Deployed.csproj" />
     <Project Path="src/Lamina.XunitV3/Lamina.XunitV3.csproj" />
     <Project Path="src/Lamina/Lamina.csproj" />
   </Folder>
@@ -16,6 +17,7 @@
     <Project Path="tests/Lamina.IntegrationTests/Lamina.IntegrationTests.csproj" />
     <Project Path="tests/Lamina.Stubs.Tests/Lamina.Stubs.Tests.csproj" />
     <Project Path="tests/Lamina.Stubs.WireMock.Tests/Lamina.Stubs.WireMock.Tests.csproj" />
+    <Project Path="tests/Lamina.Sut.Deployed.Tests/Lamina.Sut.Deployed.Tests.csproj" />
     <Project Path="tests/Lamina.Tests/Lamina.Tests.csproj" />
     <Project Path="tests/Lamina.XunitV3.Tests.Samples/Lamina.XunitV3.Tests.Samples.csproj" />
     <Project Path="tests/Lamina.XunitV3.Tests/Lamina.XunitV3.Tests.csproj" />

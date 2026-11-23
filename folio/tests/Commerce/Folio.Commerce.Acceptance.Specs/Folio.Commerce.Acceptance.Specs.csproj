@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\packages\src\Lamina.Sut.Aspire\Lamina.Sut.Aspire.csproj" />
+    <ProjectReference Include="..\..\..\..\packages\src\Lamina.Sut.Deployed\Lamina.Sut.Deployed.csproj" />
     <ProjectReference Include="..\..\..\..\packages\src\Lamina.XunitV3\Lamina.XunitV3.csproj" />
     <ProjectReference Include="..\..\..\src\Folio.AppHost\Folio.AppHost.csproj" />
     <ProjectReference Include="..\Folio.Commerce.Acceptance.Drivers\Folio.Commerce.Acceptance.Drivers.csproj" />
