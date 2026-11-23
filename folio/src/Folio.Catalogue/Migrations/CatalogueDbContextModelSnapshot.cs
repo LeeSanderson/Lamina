@@ -54,6 +54,45 @@ namespace Folio.Catalogue.Migrations
                             t.HasCheckConstraint("ck_books_stock", "reserved >= 0 AND reserved <= on_hand");
                         });
                 });
+
+            modelBuilder.Entity("Folio.Catalogue.Reservation", b =>
+                {
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<Guid>("BookId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("book_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("OrderId");
+
+                    b.HasIndex("BookId");
+
+                    b.ToTable("reservations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_reservations_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Folio.Catalogue.Reservation", b =>
+                {
+                    b.HasOne("Folio.Catalogue.Book", null)
+                        .WithMany()
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
 #pragma warning restore 612, 618
         }
     }
