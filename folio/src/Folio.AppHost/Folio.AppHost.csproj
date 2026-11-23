@@ -1,0 +1,18 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
+    <UserSecretsId>3f0c2b55-6f1e-4d1a-9a59-0f6c1b7d2a41</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Folio.Catalogue\Folio.Catalogue.csproj" />
+    <ProjectReference Include="..\Folio.WebBff\Folio.WebBff.csproj" />
+  </ItemGroup>
+
+</Project>

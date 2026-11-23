@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Lamina.Drivers.Http/Lamina.Drivers.Http.csproj" />
     <Project Path="src/Lamina.Dsl/Lamina.Dsl.csproj" />
     <Project Path="src/Lamina.Stubs.WireMock/Lamina.Stubs.WireMock.csproj" />
     <Project Path="src/Lamina.Stubs/Lamina.Stubs.csproj" />
@@ -7,6 +8,7 @@
     <Project Path="src/Lamina/Lamina.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Lamina.Drivers.Http.Tests/Lamina.Drivers.Http.Tests.csproj" />
     <Project Path="tests/Lamina.Dsl.Tests/Lamina.Dsl.Tests.csproj" />
     <Project Path="tests/Lamina.IntegrationTests.AppHost/Lamina.IntegrationTests.AppHost.csproj" />
     <Project Path="tests/Lamina.IntegrationTests/Lamina.IntegrationTests.csproj" />
