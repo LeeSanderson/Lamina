@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Lamina.Stubs.WireMock\Lamina.Stubs.WireMock.csproj" />
     <ProjectReference Include="..\..\src\Lamina.Sut.Aspire\Lamina.Sut.Aspire.csproj" />
     <ProjectReference Include="..\Lamina.IntegrationTests.AppHost\Lamina.IntegrationTests.AppHost.csproj" />
   </ItemGroup>

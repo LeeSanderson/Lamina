@@ -51,7 +51,7 @@ jobs:
           status=0
           for solution in packages/Lamina.slnx folio/Folio.slnx; do
             report="$RUNNER_TEMP/outdated-$(basename "$solution" .slnx).md"
-            excludes=()
+            excludes=(--exclude Aspire.)
             if [ "$solution" = "folio/Folio.slnx" ]; then excludes=("${folio_excludes[@]}"); fi
             if dotnet outdated "$solution" "${excludes[@]}" --fail-on-updates --output-format markdown --output "$report"; then
               echo "### \`$solution\`: all packages up to date" >> "$GITHUB_STEP_SUMMARY"

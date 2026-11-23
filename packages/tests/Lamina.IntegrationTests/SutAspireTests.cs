@@ -44,7 +44,7 @@ public sealed class SutAspireTests : IDisposable
 
         var error = Should.Throw<ArgumentException>(() => run.Sut.Endpoint("greeterr"));
 
-        error.Message.ShouldStartWith("The AppHost has no resource named 'greeterr'. Resources: greeter, late.");
+        error.Message.ShouldStartWith("The AppHost has no resource named 'greeterr'. Resources: payment-provider, greeter, late.");
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class SutAspireTests : IDisposable
                 ["provider"] = "aspire",
                 ["apphost"] = "Lamina.IntegrationTests.AppHost",
                 ["arguments"] = "--Greeting hi",
-                ["resources"] = "greeter, late",
+                ["resources"] = "payment-provider, greeter, late",
             },
             ignoreOrder: true);
     }

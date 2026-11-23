@@ -12,6 +12,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Folio.Catalogue\Folio.Catalogue.csproj" />
+    <ProjectReference Include="..\Folio.Customers\Folio.Customers.csproj" />
+    <ProjectReference Include="..\Folio.Ordering\Folio.Ordering.csproj" />
+    <ProjectReference Include="..\Folio.Payments\Folio.Payments.csproj" />
     <ProjectReference Include="..\Folio.WebBff\Folio.WebBff.csproj" />
   </ItemGroup>
 
