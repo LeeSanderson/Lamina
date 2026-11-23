@@ -20,8 +20,7 @@
     <PackageVersion Include="PolySharp" Version="1.17.1" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
-    <!-- Held at 32.0.1: Verify 33 fails the build (SC021) until the repo owner declares a Verify maintenance-fee sponsorship or exemption. -->
-    <PackageVersion Include="Verify.XunitV3" Version="32.0.1" />
+    <PackageVersion Include="Verify.XunitV3" Version="33.7.2" />
     <PackageVersion Include="WireMock.Net" Version="2.32.0" />
     <PackageVersion Include="xunit.v3" Version="4.0.3" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.3" />

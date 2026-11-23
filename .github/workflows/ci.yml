@@ -50,9 +50,7 @@ jobs:
           # - Microsoft.CodeAnalysis.CSharp 5.0.0 is the channel generator's compiler baseline
           #   (.NET 10 GA), so the generator loads on every SDK 10 compiler. Permanent
           #   (docs/adr/0004-roslyn-5-0-generator-baseline.md).
-          # - Verify 33 fails the build (SC021) until the owner declares a Verify
-          #   maintenance-fee sponsorship or exemption (#48).
-          packages_excludes=(--exclude Aspire. --exclude Microsoft.CodeAnalysis. --exclude Verify)
+          packages_excludes=(--exclude Aspire. --exclude Microsoft.CodeAnalysis.)
           folio_excludes=(--exclude Aspire. --exclude Microsoft.EntityFrameworkCore. --exclude Microsoft.CodeAnalysis.)
           status=0
           for solution in packages/Lamina.slnx folio/Folio.slnx; do

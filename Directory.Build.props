@@ -6,4 +6,12 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <!-- Verify (test-only) charges an open source maintenance fee from 33.x and fails the build (SC021)
+       without a declared sponsorship or exemption. Lamina is MIT-licensed and earns no revenue, so it
+       claims the OpenSource exemption (#48). The exemption lasts at most 12 months: the build fails
+       again after the month below, so renew it by then, by no more than 12 months at a time. -->
+  <PropertyGroup>
+    <Verify_SponsorshipExemption>OpenSource</Verify_SponsorshipExemption>
+    <Verify_SponsorshipExemptionUntil>2027-11</Verify_SponsorshipExemptionUntil>
+  </PropertyGroup>
 </Project>
