@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Lamina;
 
 /// <summary>
@@ -57,6 +59,29 @@ public sealed class Aliases
         {
             return _backward.GetValueOrDefault(alias, alias);
         }
+    }
+
+    /// <summary>
+    /// Returns <paramref name="text"/> with every alias and unique value in it followed by the name it was made from:
+    /// <c>Dune (Dune-k3f9a2)</c>. For failure messages.
+    /// </summary>
+    public string Annotate(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        KeyValuePair<string, string>[] made;
+        lock (_gate)
+        {
+            made = [.. _backward];
+        }
+
+        if (made.Length == 0)
+        {
+            return text;
+        }
+
+        var originals = made.ToDictionary(StringComparer.Ordinal);
+        var anyMade = string.Join('|', made.Select(m => m.Key).OrderByDescending(v => v.Length).Select(Regex.Escape));
+        return Regex.Replace(text, anyMade, match => $"{originals[match.Value]} ({match.Value})", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
     }
 
     /// <summary>

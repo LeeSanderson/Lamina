@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Lamina.Dsl;
 
 /// <summary>
@@ -18,6 +20,11 @@ public abstract class LaminaDsl
     /// Returns the spec's alias for <paramref name="name"/>: the same value every time within the spec.
     /// </summary>
     protected string Alias(string name) => Scope.Aliases.For(name);
+
+    /// <summary>
+    /// Gets the spec's <see cref="Lamina.Eventually"/>, for waiting on a condition with a diagnosable failure.
+    /// </summary>
+    protected Eventually Eventually => Scope.Services.GetRequiredService<Eventually>();
 
     protected void Remember<T>(Key<T> key, T value)
         where T : notnull =>

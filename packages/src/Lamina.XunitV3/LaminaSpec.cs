@@ -33,15 +33,27 @@ public abstract class LaminaSpec<TSuite> : IAsyncLifetime
         _scope = fixture.Run.CreateScope(channel, test.TestDisplayName);
     }
 
+    /// <summary>
+    /// Writes the spec's footer (test ID, channel and aliases) to the test output and disposes the scope. When the test has
+    /// failed, it also throws the footer as a <see cref="LaminaDiagnosticsException"/>, so the footer joins the failure's message
+    /// whatever failed.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
-        if (_scope is not null)
+        GC.SuppressFinalize(this);
+        if (_scope is null)
         {
-            TestContext.Current.TestOutputHelper?.WriteLine(_scope.Summary);
-            await _scope.DisposeAsync().ConfigureAwait(false);
+            return;
         }
 
-        GC.SuppressFinalize(this);
+        var context = TestContext.Current;
+        var footer = _scope.Summary;
+        context.TestOutputHelper?.WriteLine(footer);
+        await _scope.DisposeAsync().ConfigureAwait(false);
+        if (context.TestState?.Result == TestResult.Failed)
+        {
+            throw new LaminaDiagnosticsException(footer);
+        }
     }
 
     /// <summary>
