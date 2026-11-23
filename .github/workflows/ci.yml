@@ -1,0 +1,93 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Build packages solution
+        run: dotnet build packages/Lamina.slnx -c Release -warnaserror
+      - name: Build Folio solution
+        run: dotnet build folio/Folio.slnx -c Release -warnaserror
+
+  outdated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Restore local tools
+        run: dotnet tool restore
+      - name: Check for outdated packages
+        # Blocks on push and nightly; only warns on pull requests (Plan.md §9.2).
+        env:
+          BLOCKING: ${{ github.event_name != 'pull_request' }}
+        run: |
+          status=0
+          for solution in packages/Lamina.slnx folio/Folio.slnx; do
+            report="$RUNNER_TEMP/outdated-$(basename "$solution" .slnx).md"
+            if dotnet outdated "$solution" --fail-on-updates --output-format markdown --output "$report"; then
+              echo "### \`$solution\`: all packages up to date" >> "$GITHUB_STEP_SUMMARY"
+            else
+              status=1
+              echo "### \`$solution\`: outdated packages" >> "$GITHUB_STEP_SUMMARY"
+              if [ -f "$report" ]; then cat "$report" >> "$GITHUB_STEP_SUMMARY"; fi
+            fi
+            echo >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$status" -ne 0 ]; then
+            if [ "$BLOCKING" = "true" ]; then
+              echo "::error::Outdated packages found. See the job summary."
+              exit 1
+            fi
+            echo "::warning::Outdated packages found. See the job summary. This does not block pull requests."
+          fi
+
+  unit-tests:
+    needs: [build, outdated]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Run unit tests
+        # Every project named *.Tests.csproj in either solution is a unit test project.
+        # Lamina.IntegrationTests, Lamina.XunitV3.Tests.Samples and the acceptance Specs
+        # projects don't match, so they stay out of this job. dotnet test runs in
+        # Microsoft.Testing.Platform mode (global.json) and rebuilds each project.
+        run: |
+          mapfile -t projects < <(git ls-files '*.Tests.csproj')
+          if [ "${#projects[@]}" -eq 0 ]; then
+            echo "No unit test projects yet." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          status=0
+          for project in "${projects[@]}"; do
+            echo "::group::$project"
+            # No -warnaserror here: in MTP mode dotnet test passes it to the test app, which
+            # exits 5. TreatWarningsAsErrors in Directory.Build.props still applies.
+            dotnet test --project "$project" -c Release || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
