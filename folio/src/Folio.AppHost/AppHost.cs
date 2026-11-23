@@ -5,7 +5,10 @@ const string healthPath = "/health";
 var builder = DistributedApplication.CreateBuilder(args);
 FolioProfile.EnsureSupported(builder.Configuration);
 
-var postgres = builder.AddPostgres("postgres");
+// Four services share this server, and each pools up to 100 connections. Postgres's default of 100 runs out when the
+// acceptance suite runs 50 copies of each spec at once ("53300: sorry, too many clients already").
+var postgres = builder.AddPostgres("postgres")
+    .WithArgs("-c", "max_connections=500");
 var catalogueDb = postgres.AddDatabase("catalogue-db");
 var customersDb = postgres.AddDatabase("customers-db");
 var orderingDb = postgres.AddDatabase("ordering-db");
