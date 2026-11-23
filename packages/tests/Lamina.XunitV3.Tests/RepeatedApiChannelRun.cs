@@ -1,9 +1,6 @@
 namespace Lamina.XunitV3.Tests;
 
-/// <summary>
-/// Runs a copy of the samples whose <c>appsettings.local.json</c> sets <c>Lamina:Repeat</c> to 3, with the filter
-/// <c>Channel=api</c>, as <c>dotnet test --filter "Channel=api"</c> does.
-/// </summary>
+// A copy of the samples whose appsettings.local.json sets Lamina:Repeat to 3, run with the filter Channel=api.
 public sealed class RepeatedApiChannelRun() : SamplesRun(filters => filters.AddIncludedTraitFilter("Channel", "api"))
 {
     private readonly string _folder = Path.Combine(Path.GetTempPath(), $"lamina-repeat-{Guid.NewGuid():N}");

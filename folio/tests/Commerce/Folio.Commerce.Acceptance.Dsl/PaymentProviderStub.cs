@@ -5,12 +5,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Folio.Commerce.Acceptance.Dsl;
 
-/// <summary>
-/// Folio's card payment provider, as a WireMock stub. Payments creates a payment with
-/// <c>POST /payments {amount, currency, cardToken, reference}</c>, the amount in pence. Spec rules are keyed on the
-/// aliased card token in that body. The provider confirms a pending payment by posting
-/// <c>{type: "payment.succeeded", id, reference}</c> to Payments' <c>/webhooks/payment-provider</c>.
-/// </summary>
+// Payments creates a payment with POST /payments {amount (pence), currency, cardToken, reference}; spec rules key on
+// the aliased card token. The provider confirms one by posting {type: "payment.succeeded", id, reference} to
+// Payments' /webhooks/payment-provider.
 [SuppressMessage("Minor Code Smell", "S4261:Methods should be named according to their synchronicities", Justification = "Domain verbs, named by the issue and Plan.md §6.5 (WillDecline).")]
 public sealed class PaymentProviderStub : WireMockStub
 {
@@ -25,30 +22,16 @@ public sealed class PaymentProviderStub : WireMockStub
 
     protected override string Resource => "payment-provider";
 
-    /// <summary>
-    /// Declines every payment created with the aliased <paramref name="card"/> token as <c>card_declined</c>.
-    /// </summary>
     public Task WillDecline(string card) =>
         When(Create(card)).Respond(PaymentRequired, new { error = "card_declined" });
 
-    /// <summary>
-    /// Takes the next <paramref name="times"/> payments created with the aliased <paramref name="card"/> token, but
-    /// loses the answer: Payments gets a 201 with an empty body, so it can't tell whether the customer was charged.
-    /// </summary>
+    // Payments gets a 201 with an empty body, so it can't tell whether the customer was charged.
     public Task LosesAnswer(string card, int times) =>
         When(Create(card)).WillAnswerEmpty(Created, times);
 
-    /// <summary>
-    /// Returns the Idempotency-Key of every payment create the provider received for the aliased
-    /// <paramref name="card"/> token, oldest first.
-    /// </summary>
     public async Task<IReadOnlyList<string?>> CreateIdempotencyKeys(string card) =>
         [.. (await Journal(Create(card))).Select(e => e.Header(IdempotencyKeyHeader))];
 
-    /// <summary>
-    /// Waits for the provider to accept a payment created with the aliased <paramref name="card"/> token, then confirms it
-    /// by sending Payments the <c>payment.succeeded</c> webhook for that payment.
-    /// </summary>
     public async Task ConfirmsPayment(string card)
     {
         var accepted = await Scope.Services.GetRequiredService<Eventually>().Until(
@@ -65,9 +48,6 @@ public sealed class PaymentProviderStub : WireMockStub
         await SendWebhook(PaymentsResource, WebhookPath, new { type = "payment.succeeded", id, reference });
     }
 
-    /// <summary>
-    /// Run default: any payment create is taken, under a new provider id, and left pending until the provider confirms it.
-    /// </summary>
     protected override Task InstallDefaults() =>
         Default(
             AcceptAnyCreateId,

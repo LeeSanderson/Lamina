@@ -1,8 +1,6 @@
 namespace Folio.Commerce.Acceptance.Dsl;
 
-/// <summary>
-/// A book to add, with defaults for everything a spec doesn't mention.
-/// </summary>
+// Defaults for everything a spec doesn't mention.
 public sealed class BookBuilder(string title)
 {
     public string Title { get; } = title;

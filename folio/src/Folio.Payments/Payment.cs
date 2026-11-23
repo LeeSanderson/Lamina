@@ -26,9 +26,6 @@ public sealed class Payment
 
     public DateTimeOffset? NextAttemptAt { get; set; }
 
-    /// <summary>
-    /// Gets or sets how many times the payment has been submitted to the provider.
-    /// </summary>
     public int Attempts { get; set; }
 
     internal long AmountInPence => decimal.ToInt64(decimal.Round(Amount * PenceInAPound, MidpointRounding.AwayFromZero));
@@ -42,10 +39,7 @@ public sealed class Payment
         _ => PaymentOutcome.Unknown,
     };
 
-    /// <summary>
-    /// Records that the provider confirmed the payment, under its id <paramref name="providerPaymentId"/>. Returns false,
-    /// changing nothing, when the payment was declined.
-    /// </summary>
+    // False, changing nothing, when the payment was declined.
     internal bool Confirm(string? providerPaymentId)
     {
         if (Status == PaymentStatus.Declined)
@@ -59,20 +53,13 @@ public sealed class Payment
         return true;
     }
 
-    /// <summary>
-    /// Counts a submission about to be made, and holds the payment back from the retry worker for <paramref name="lease"/>,
-    /// longer than the provider call can take.
-    /// </summary>
+    // The lease holds the payment back from the retry worker for longer than the provider call can take.
     internal void StartAttempt(DateTimeOffset now, TimeSpan lease)
     {
         Attempts++;
         NextAttemptAt = now + lease;
     }
 
-    /// <summary>
-    /// Records the provider's answer to the latest submission. A lost answer leaves the payment waiting for a retry after
-    /// the policy's back-off, or fails it when no retries are left.
-    /// </summary>
     internal void Record(ProviderReply reply, DateTimeOffset now, PaymentRetryPolicy policy)
     {
         switch (reply.Answer)

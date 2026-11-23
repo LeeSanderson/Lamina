@@ -3,10 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Folio.Payments;
 
-/// <summary>
-/// Resubmits payments whose outcome is unknown, with the same Idempotency-Key, so the provider never charges twice.
-/// It sleeps until the next payment is due, on <see cref="TimeProvider"/>, or until Payments wakes it after a lost answer.
-/// </summary>
+// Resubmits payments whose outcome is unknown with the same Idempotency-Key, so the provider never charges twice.
 internal sealed partial class PaymentRetryWorker(
     IServiceScopeFactory scopes,
     PaymentRetrySignal signal,
@@ -14,10 +11,7 @@ internal sealed partial class PaymentRetryWorker(
     TimeProvider time,
     ILogger<PaymentRetryWorker> logger) : BackgroundService
 {
-    /// <summary>
-    /// Resubmits every payment that is due now, and returns when the next one falls due, or <see langword="null"/>
-    /// when none is waiting.
-    /// </summary>
+    // Returns when the next payment falls due, or null when none is waiting.
     internal async Task<DateTimeOffset?> RetryDueAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopes.CreateAsyncScope();
@@ -111,25 +105,14 @@ internal sealed partial class PaymentRetryWorker(
     private partial void LogSettledElsewhere(string reference);
 }
 
-/// <summary>
-/// How Payments retries a payment whose outcome is unknown: the first back-off, doubled after each lost answer, and
-/// how many resubmissions it makes before it gives up.
-/// </summary>
 internal sealed record PaymentRetryPolicy(TimeSpan FirstBackOff, int Retries, TimeSpan SubmissionLease)
 {
     private const double BackOffGrowth = 2;
 
-    /// <summary>
-    /// Returns how long to wait after the <paramref name="attempts"/>-th submission lost its answer, or
-    /// <see langword="null"/> when no retries are left.
-    /// </summary>
     internal TimeSpan? BackOffAfter(int attempts) =>
         attempts > Retries ? null : FirstBackOff * Math.Pow(BackOffGrowth, attempts - 1);
 }
 
-/// <summary>
-/// Wakes the retry worker when Payments has a new payment to retry.
-/// </summary>
 internal sealed class PaymentRetrySignal
 {
     private readonly Channel<bool> _wakeUps = Channel.CreateBounded<bool>(
@@ -137,9 +120,6 @@ internal sealed class PaymentRetrySignal
 
     internal void Wake() => _wakeUps.Writer.TryWrite(item: true);
 
-    /// <summary>
-    /// Waits until <paramref name="until"/> (forever when <see langword="null"/>) or a wake-up, whichever comes first.
-    /// </summary>
     internal async Task WaitAsync(DateTimeOffset? until, TimeProvider time, CancellationToken cancellationToken)
     {
         var wait = until is { } due ? Max(due - time.GetUtcNow(), TimeSpan.Zero) : Timeout.InfiniteTimeSpan;

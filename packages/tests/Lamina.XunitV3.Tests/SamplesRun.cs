@@ -5,9 +5,7 @@ using Xunit.SimpleRunner;
 
 namespace Lamina.XunitV3.Tests;
 
-/// <summary>
-/// Runs Lamina.XunitV3.Tests.Samples once, out of process, and keeps every test's result.
-/// </summary>
+// Runs Lamina.XunitV3.Tests.Samples once, out of process, and keeps every test's result.
 public class SamplesRun : IAsyncLifetime
 {
     private readonly ConcurrentBag<SampleResult> _results = [];
@@ -53,8 +51,6 @@ public class SamplesRun : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 
-    /// <summary>
-    /// Returns the samples assembly to run. A subclass can copy it elsewhere first, for example to add settings.
-    /// </summary>
+    // A subclass can copy the assembly elsewhere first, for example to add settings.
     protected virtual string PrepareAssembly() => SamplesAssembly;
 }

@@ -15,27 +15,18 @@ public sealed class ShoppingDsl(IShoppingDriver driver) : LaminaDsl
 
     public Task AsStaff(string name) => driver.SignInAsStaffAsync(Alias(name));
 
-    /// <summary>
-    /// Orders one copy of <paramref name="title"/>, paying with <paramref name="card"/>.
-    /// </summary>
     public async Task PlaceOrder(string title, string card)
     {
         var orderId = await driver.PlaceOrderAsync(Recall(CommerceKeys.BookId(title)), 1, Alias(card));
         Remember(CommerceKeys.Order, orderId);
     }
 
-    /// <summary>
-    /// Checks, without waiting, that the spec's order is still waiting for its payment.
-    /// </summary>
     public async Task ConfirmOrderPending()
     {
         var order = await driver.ReadOrderAsync(Recall(CommerceKeys.Order));
         order.Status.ShouldBe(Pending, "the order should be waiting for its payment");
     }
 
-    /// <summary>
-    /// Waits for the spec's order to become Confirmed.
-    /// </summary>
     public Task ConfirmOrderConfirmed()
     {
         var orderId = Recall(CommerceKeys.Order);
@@ -46,9 +37,6 @@ public sealed class ShoppingDsl(IShoppingDriver driver) : LaminaDsl
             $"the order should be {Confirmed}");
     }
 
-    /// <summary>
-    /// Checks, without waiting, that the spec's order was rejected for <paramref name="reason"/>.
-    /// </summary>
     public async Task ConfirmOrderRejected(string reason)
     {
         var order = await driver.ReadOrderAsync(Recall(CommerceKeys.Order));
