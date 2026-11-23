@@ -9,6 +9,11 @@
     <Project Path="src/Folio.WebBff/Folio.WebBff.csproj" />
   </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/Commerce/">
+    <Project Path="tests/Commerce/Folio.Commerce.Acceptance.Drivers/Folio.Commerce.Acceptance.Drivers.csproj" />
+    <Project Path="tests/Commerce/Folio.Commerce.Acceptance.Dsl/Folio.Commerce.Acceptance.Dsl.csproj" />
+    <Project Path="tests/Commerce/Folio.Commerce.Acceptance.Specs/Folio.Commerce.Acceptance.Specs.csproj" />
+  </Folder>
   <Folder Name="/tests/unit/">
     <Project Path="tests/unit/Folio.Payments.Tests/Folio.Payments.Tests.csproj" />
   </Folder>

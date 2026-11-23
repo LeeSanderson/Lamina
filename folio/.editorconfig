@@ -1,3 +1,7 @@
 # EF Core migrations are scaffolded by `dotnet ef`; treat them as generated code so style rules skip them.
 [src/**/Migrations/*.cs]
 generated_code = true
+
+# Acceptance specs assert through their DSLs' Confirm* methods, so a spec method has no assertion of its own.
+[tests/*/*.Acceptance.Specs/**.cs]
+dotnet_diagnostic.S2699.severity = none
