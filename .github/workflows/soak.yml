@@ -1,0 +1,59 @@
+name: soak
+
+# Run by hand. The evidence for Plan.md §10 phase 1, criterion 1: the Commerce suite with
+# 50 copies of each spec, run in parallel through Sut.Aspire, passes 20 runs in a row.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Consecutive runs (criterion 1 needs 20)
+        type: number
+        default: 20
+      copies:
+        description: Copies of each spec per run (Lamina__Repeat; criterion 1 needs 50)
+        type: number
+        default: 50
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    # A run takes about two minutes, start-up included.
+    timeout-minutes: 150
+    env:
+      TEST_RESULTS: ${{ github.workspace }}/test-results
+      SPECS: folio/tests/Commerce/Folio.Commerce.Acceptance.Specs
+      # Seconds. The first run pulls the Postgres and WireMock images during start-up.
+      Lamina__Sut__ReadyTimeout: "300"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Build
+        run: dotnet build "$SPECS" -c Release
+      - name: Run the Commerce specs ${{ inputs.runs }} times in a row
+        # Each run starts the Folio AppHost itself. Stops at the first failing run, keeps only
+        # that run's results and logs, and writes "N/${{ inputs.runs }} passed" to the summary.
+        env:
+          RUNS: ${{ inputs.runs }}
+          COPIES: ${{ inputs.copies }}
+        run: bash .github/scripts/soak.sh "$SPECS" "$RUNS" "$COPIES"
+      - name: Upload the failing run's results and logs
+        # Passing runs delete their folders, so this uploads nothing when every run passed.
+        # always(): a run cut off by the job timeout still leaves its logs so far.
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: soak-failed-run
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 30
