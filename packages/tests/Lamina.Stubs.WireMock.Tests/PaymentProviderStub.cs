@@ -43,6 +43,14 @@ public sealed class PaymentProviderStub : WireMockStub
 
     public Task<IReadOnlyList<JournalEntry>> AnyCreates() => Journal(Post("/payments"));
 
+    // As Folio's ConfirmsPayment starts: wait for the provider to have taken a create before acting on it.
+    public async Task<JournalEntry> AcceptedCreate(string card, TimeSpan within) =>
+        (await Scope.Services.GetRequiredService<Eventually>().Until(
+            () => Creates(card),
+            creates => creates.Any(c => c.Status == 201),
+            within,
+            $"the provider should have accepted a payment created with card {card}"))[^1];
+
     protected override Task InstallDefaults() => AcceptAnyCard();
 
     private static StubRequest Create(string card) => Post("/payments").WithBodyField("cardToken", card);

@@ -42,6 +42,22 @@ public sealed class JournalTests
     }
 
     [Fact]
+    public async Task WaitingOnTheJournalForACreateThatNeverCameFailsThroughEventually()
+    {
+        await using var server = new ProviderServer();
+        await using var run = await server.StartRunAsync();
+        await using var scope = run.CreateScope(channel: null, specName: "spec");
+        var stub = scope.Services.GetRequiredService<PaymentProviderStub>();
+
+        var failed = await Should.ThrowAsync<EventuallyFailedException>(
+            () => stub.AcceptedCreate(stub.Card("visa"), TimeSpan.FromMilliseconds(200)));
+
+        failed.Message.ShouldStartWith("Gave up waiting: the provider should have accepted a payment created with card ");
+        failed.Message.ShouldContain("Last observed (attempt ");
+        failed.Message.ShouldContain("[]");
+    }
+
+    [Fact]
     public async Task AJournalQueryWithoutTheTestIdIsRefused()
     {
         await using var server = new ProviderServer();

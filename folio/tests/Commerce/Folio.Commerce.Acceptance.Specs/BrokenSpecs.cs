@@ -13,10 +13,4 @@ public sealed class BrokenSpecs : FolioSpec
 
         await Catalogue.ConfirmInStock("Dune", 5);
     }
-
-    [Fact(Explicit = true)]
-    public async Task ProviderConfirmsAPaymentThatWasNeverMade()
-    {
-        await PaymentProvider.ConfirmsPayment(card: "visa");
-    }
 }

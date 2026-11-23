@@ -155,8 +155,7 @@ jobs:
           bash .github/scripts/run-xunit.sh "$SPECS" commerce-aspire
           python3 .github/scripts/check-results.py repeat "$TEST_RESULTS/commerce-aspire.xml" 50
       - name: Run the Broken spec on its own and check its failure message
-        # Plan.md §10 criterion 2. Named by method, because BrokenSpecs holds more than one
-        # explicit failing spec and only this one fails in Eventually.
+        # Plan.md §10 criterion 2: the one permanent Broken spec, which fails in Eventually.
         if: ${{ success() || failure() }}
         run: |
           if bash .github/scripts/run-xunit.sh "$SPECS" broken-spec -method "$BROKEN_SPEC" -explicit only; then
