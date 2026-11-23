@@ -23,7 +23,10 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
         payment.Property(p => p.IdempotencyKey).HasColumnName("idempotency_key");
         payment.Property(p => p.Amount).HasColumnName("amount").HasPrecision(AmountPrecision, AmountScale);
         payment.Property(p => p.CardToken).HasColumnName("card_token").HasMaxLength(TextMaxLength);
-        payment.Property(p => p.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(TextMaxLength);
+        // A concurrency token: the retry worker and the webhook both settle payments, and neither may overwrite the
+        // other's outcome, so a save fails when the status changed since the payment was read.
+        payment.Property(p => p.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(TextMaxLength)
+            .IsConcurrencyToken();
         payment.Property(p => p.ProviderPaymentId).HasColumnName("provider_payment_id").HasMaxLength(TextMaxLength);
         payment.Property(p => p.CreatedAt).HasColumnName("created_at");
         payment.Property(p => p.NextAttemptAt).HasColumnName("next_attempt_at");

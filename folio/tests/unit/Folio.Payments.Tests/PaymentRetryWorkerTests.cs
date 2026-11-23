@@ -72,6 +72,25 @@ public sealed class PaymentRetryWorkerTests
     }
 
     [Fact]
+    public async Task APaymentTheWebhookConfirmsWhileItsResubmissionIsInFlightStaysConfirmed()
+    {
+        Guid paymentId = default;
+        await using var harness = RetryHarness.ProviderAnswering(async h =>
+        {
+            await h.ConfirmAsTheWebhookDoesAsync(paymentId, "pay_8f2k");
+            return Answer(HttpStatusCode.Created, """{ "id": "pay_8f2k", "status": "pending" }""");
+        });
+        paymentId = (await harness.ALostPaymentAsync()).Id;
+
+        harness.Clock.Advance(RetryHarness.FirstBackOff);
+        var next = await harness.Worker.RetryDueAsync(TestContext.Current.CancellationToken);
+
+        next.ShouldBeNull();
+        (await harness.ReadAsync(paymentId)).Outcome.ShouldBe(PaymentOutcome.Confirmed);
+        harness.OrderingCalls.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task TheRunningWorkerWokenByPaymentsResubmitsOnceTheBackOffEnds()
     {
         await using var harness = RetryHarness.ProviderAnswering(() => Answer(HttpStatusCode.Created, """{ "id": "pay_8f2k", "status": "pending" }"""));

@@ -68,13 +68,19 @@ internal sealed partial class PaymentRetryWorker(
     {
         // Counted and leased before the call, so a crash mid-call still counts the attempt and retries after the lease.
         payment.StartAttempt(time.GetUtcNow(), policy.SubmissionLease);
-        await db.SaveChangesAsync(cancellationToken);
+        if (!await TrySaveAsync(payment, db, cancellationToken))
+        {
+            return;
+        }
 
         var reply = await provider.CreatePaymentAsync(
             new PaymentCreate(payment.Reference, payment.IdempotencyKey, payment.AmountInPence, payment.CardToken),
             cancellationToken);
         payment.Record(reply, time.GetUtcNow(), policy);
-        await db.SaveChangesAsync(cancellationToken);
+        if (!await TrySaveAsync(payment, db, cancellationToken))
+        {
+            return;
+        }
 
         if (payment.Outcome is PaymentOutcome.Declined or PaymentOutcome.Failed)
         {
@@ -82,8 +88,27 @@ internal sealed partial class PaymentRetryWorker(
         }
     }
 
+    // False when the webhook settled the payment since it was read; its outcome stands and this attempt is dropped.
+    private async Task<bool> TrySaveAsync(Payment payment, PaymentsDbContext db, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            LogSettledElsewhere(payment.Reference);
+            db.Entry(payment).State = EntityState.Detached;
+            return false;
+        }
+    }
+
     [LoggerMessage(Level = LogLevel.Error, Message = "A payment retry pass failed; trying again after the first back-off.")]
     private partial void LogRetryPassFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Payment {Reference} was settled while it was being retried; the retry is dropped.")]
+    private partial void LogSettledElsewhere(string reference);
 }
 
 /// <summary>

@@ -39,7 +39,17 @@ internal static class PaymentEndpoints
             new PaymentCreate(payment.Reference, payment.IdempotencyKey, payment.AmountInPence, payment.CardToken),
             cancellationToken);
         payment.Record(reply, time.GetUtcNow(), policy);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The webhook settled the payment while the create was in flight; its outcome stands.
+            db.ChangeTracker.Clear();
+            return Results.Ok(View((await FindForOrderAsync(db, request.OrderId, cancellationToken))!));
+        }
+
         if (payment.Status == PaymentStatus.AwaitingSubmission)
         {
             retries.Wake();

@@ -39,11 +39,16 @@ internal sealed class RetryHarness : IAsyncDisposable
 
     internal IReadOnlyList<(string Path, string Body)> OrderingCalls => _ordering.Calls;
 
-    internal static RetryHarness ProviderAnswering(Func<HttpResponseMessage> answer)
+    internal static RetryHarness ProviderAnswering(Func<HttpResponseMessage> answer) =>
+        ProviderAnswering(_ => Task.FromResult(answer()));
+
+    // The answer may act on the harness first, as something else touching the payment while the call is in flight.
+    internal static RetryHarness ProviderAnswering(Func<RetryHarness, Task<HttpResponseMessage>> answer)
     {
+        RetryHarness? harness = null;
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 23, 9, 0, 0, TimeSpan.Zero));
-        var provider = new RecordingHandler(clock.GetUtcNow, answer);
-        var ordering = new RecordingHandler(clock.GetUtcNow, () => new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+        var provider = new RecordingHandler(clock.GetUtcNow, () => answer(harness!));
+        var ordering = new RecordingHandler(clock.GetUtcNow, () => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)));
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration["Clients:PaymentProvider"] = "http://payment-provider";
         builder.Configuration["Clients:Ordering"] = "http://ordering";
@@ -58,7 +63,8 @@ internal sealed class RetryHarness : IAsyncDisposable
         builder.Services.AddHttpClient<OrderingClient>().ConfigurePrimaryHttpMessageHandler(() => ordering);
         builder.AddPaymentRetries();
         var host = builder.Build();
-        return new RetryHarness(clock, host, provider, ordering);
+        harness = new RetryHarness(clock, host, provider, ordering);
+        return harness;
     }
 
     internal Task StartAsync() => _host.StartAsync(TestContext.Current.CancellationToken);
@@ -88,6 +94,16 @@ internal sealed class RetryHarness : IAsyncDisposable
         return payment;
     }
 
+    // What the provider's payment.succeeded webhook does to the payment, in a scope of its own.
+    internal async Task ConfirmAsTheWebhookDoesAsync(Guid id, string providerPaymentId)
+    {
+        await using var scope = _host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+        var payment = await db.Payments.SingleAsync(p => p.Id == id, TestContext.Current.CancellationToken);
+        payment.Confirm(providerPaymentId).ShouldBeTrue();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
     internal async Task<Payment> ReadAsync(Guid id)
     {
         await using var scope = _host.Services.CreateAsyncScope();
@@ -101,7 +117,7 @@ internal sealed class RetryHarness : IAsyncDisposable
         _host.Dispose();
     }
 
-    private sealed class RecordingHandler(Func<DateTimeOffset> now, Func<HttpResponseMessage> answer) : HttpMessageHandler
+    private sealed class RecordingHandler(Func<DateTimeOffset> now, Func<Task<HttpResponseMessage>> answer) : HttpMessageHandler
     {
         private readonly ConcurrentQueue<HttpRequestMessage> _requests = new();
         private readonly ConcurrentQueue<DateTimeOffset> _times = new();
@@ -119,7 +135,7 @@ internal sealed class RetryHarness : IAsyncDisposable
             _times.Enqueue(now());
             _calls.Enqueue((request.RequestUri!.AbsolutePath, body));
             _requests.Enqueue(request);
-            return answer();
+            return await answer();
         }
     }
 }
