@@ -3,6 +3,7 @@ using Folio.Commerce.Acceptance.Dsl;
 using Folio.Commerce.Acceptance.Specs;
 using Lamina;
 using Lamina.Dsl;
+using Lamina.Stubs;
 using Lamina.Sut.Aspire;
 using Lamina.Sut.Deployed;
 using Lamina.XunitV3;
@@ -19,5 +20,6 @@ public sealed class FolioSuite : LaminaSuite
             .UseSut(sut => sut.Aspire<Projects.Folio_AppHost>("--Profile", "acceptance").OrDeployed())
             .AddChannel(FolioChannels.Api, isDefault: true)
             .AddApiDrivers(FolioChannels.Api)
+            .AddStub<PaymentProviderStub>()
             .AddDslsFromAssemblyOf<CatalogueDsl>();
 }
