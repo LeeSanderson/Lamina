@@ -64,12 +64,24 @@ public sealed class SutAspireTests : IDisposable
     }
 
     [Fact]
+    public async Task TheStartLineGivesTheProviderAndEachResourceWithItsUrl()
+    {
+        var run = await new AspireSuite().StartAsync(TestContext.Current.CancellationToken);
+        var endpoints = $"payment-provider = {run.Sut.Endpoint("payment-provider")}, greeter = {run.Sut.Endpoint("greeter")}, late = {run.Sut.Endpoint("late")}";
+        await run.DisposeAsync();
+
+        run.StartLine.ShouldStartWith("Lamina run started with SUT provider 'aspire', ready in ");
+        run.StartLine.ShouldContain($"Endpoints: {endpoints}. Metadata: provider = aspire, apphost = Lamina.IntegrationTests.AppHost");
+        run.TeardownLine.ShouldNotBeNull().ShouldMatch(@"^Lamina run torn down in \d+\.\d s\.$");
+    }
+
+    [Fact]
     public async Task AResourceThatNeverBecomesHealthyFailsTheRunNamingItsStateAndLogs()
     {
         var settings = Directory.CreateTempSubdirectory("lamina-aspire-");
         try
         {
-            await File.WriteAllTextAsync(Path.Combine(settings.FullName, "appsettings.json"), """{ "Lamina": { "Sut": { "ReadyTimeout": "00:00:15" } } }""", TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(settings.FullName, "appsettings.json"), """{ "Lamina": { "Sut": { "ReadyTimeout": "15" } } }""", TestContext.Current.CancellationToken);
             var suite = new AspireSuite("--LateBy", "1.00:00:00") { Settings = settings.FullName };
 
             var error = await Should.ThrowAsync<TimeoutException>(() => suite.StartAsync(TestContext.Current.CancellationToken));

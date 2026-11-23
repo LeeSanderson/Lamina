@@ -5,6 +5,8 @@ internal sealed class BorrowedSut(ISystemUnderTest inner) : ISystemUnderTest
 {
     public IReadOnlyDictionary<string, string> Metadata => inner.Metadata;
 
+    public IReadOnlyCollection<string> EndpointNames => inner.EndpointNames;
+
     public Uri Endpoint(string name) => inner.Endpoint(name);
 
     public Task WaitUntilReadyAsync(CancellationToken ct) => inner.WaitUntilReadyAsync(ct);
