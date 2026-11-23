@@ -8,13 +8,19 @@
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.5" />
+    <!-- The generator's compiler baseline: 5.0.0 is the .NET 10 GA Roslyn, so the generator loads on any SDK 10 compiler. Don't bump it to the latest. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0" />
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.23.0" />
+    <PackageVersion Include="PolySharp" Version="1.17.1" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
+    <!-- Held at 32.0.1: Verify 33 fails the build (SC021) until the repo owner declares a Verify maintenance-fee sponsorship or exemption. -->
+    <PackageVersion Include="Verify.XunitV3" Version="32.0.1" />
     <PackageVersion Include="WireMock.Net" Version="2.32.0" />
     <PackageVersion Include="xunit.v3" Version="4.0.3" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.3" />

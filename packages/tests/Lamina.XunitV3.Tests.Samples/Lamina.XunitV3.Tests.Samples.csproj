@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lamina.Dsl\Lamina.Dsl.csproj" />
     <ProjectReference Include="..\..\src\Lamina.XunitV3\Lamina.XunitV3.csproj" />
+    <ProjectReference Include="..\..\src\Lamina.XunitV3.Generators\Lamina.XunitV3.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

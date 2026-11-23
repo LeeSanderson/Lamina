@@ -13,5 +13,6 @@ public sealed class SampleSuite : LaminaSuite
             .UseSut(sut => sut.AddProvider("fake", _ => new FakeSut()))
             .AddChannel("api", isDefault: true)
             .AddChannel("web")
+            .AddDriver<IShelfDriver, ApiShelfDriver>("api")
             .AddDslsFromAssemblyOf<LibraryDsl>();
 }
