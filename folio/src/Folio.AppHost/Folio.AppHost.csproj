@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,15 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.Dotnet" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
   </ItemGroup>
 
+  <!-- AppHost.cs adds these by path (AddDotnetProject); the references only make them build first. -->
   <ItemGroup>
-    <ProjectReference Include="..\Folio.Catalogue\Folio.Catalogue.csproj" />
-    <ProjectReference Include="..\Folio.Customers\Folio.Customers.csproj" />
-    <ProjectReference Include="..\Folio.Ordering\Folio.Ordering.csproj" />
-    <ProjectReference Include="..\Folio.Payments\Folio.Payments.csproj" />
-    <ProjectReference Include="..\Folio.WebBff\Folio.WebBff.csproj" />
+    <ProjectReference Include="..\Folio.Catalogue\Folio.Catalogue.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Folio.Customers\Folio.Customers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Folio.Ordering\Folio.Ordering.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Folio.Payments\Folio.Payments.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Folio.WebBff\Folio.WebBff.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

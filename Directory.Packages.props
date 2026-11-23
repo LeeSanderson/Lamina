@@ -7,7 +7,9 @@
     <GlobalPackageReference Include="Opinionated.DotNet.CodingStandards" Version="0.0.22" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="17.0.0" />
+    <PackageVersion Include="Aspire.Hosting.Dotnet" Version="17.0.0" />
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="17.0.0" />
     <!-- The generator's compiler baseline: 5.0.0 is the .NET 10 GA Roslyn, so the generator loads on any SDK 10 compiler. Don't bump it to the latest. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
@@ -27,7 +29,8 @@
     <PackageVersion Include="xunit.v3.runner.utility" Version="4.0.3" />
   </ItemGroup>
   <ItemGroup Label="Folio">
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="17.0.0" />
+    <!-- No stable 17.0.0 yet: 17.0.0-preview.1 is tied to EF Core 11 (net11.0). Moves with the EF Core upgrade (#47). -->
     <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.6.5" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />

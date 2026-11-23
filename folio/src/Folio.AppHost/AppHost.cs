@@ -16,17 +16,17 @@ var paymentsDb = postgres.AddDatabase("payments-db");
 
 var paymentProvider = builder.AddPaymentProviderStub("payment-provider");
 
-var catalogue = builder.AddProject<Projects.Folio_Catalogue>("catalogue")
+var catalogue = builder.AddDotnetProject("catalogue", "../Folio.Catalogue")
     .WithReference(catalogueDb)
     .WaitFor(catalogueDb)
     .WithHttpHealthCheck(healthPath);
 
-var customers = builder.AddProject<Projects.Folio_Customers>("customers")
+var customers = builder.AddDotnetProject("customers", "../Folio.Customers")
     .WithReference(customersDb)
     .WaitFor(customersDb)
     .WithHttpHealthCheck(healthPath);
 
-var payments = builder.AddProject<Projects.Folio_Payments>("payments")
+var payments = builder.AddDotnetProject("payments", "../Folio.Payments")
     .WithReference(paymentsDb)
     .WaitFor(paymentsDb)
     .WithReference(paymentProvider.GetEndpoint("http"))
@@ -34,7 +34,7 @@ var payments = builder.AddProject<Projects.Folio_Payments>("payments")
     .WithEnvironment("PaymentProvider__Retry__FirstBackOff", builder.Configuration["Acceptance:PaymentRetryFirstBackOff"])
     .WithHttpHealthCheck(healthPath);
 
-var ordering = builder.AddProject<Projects.Folio_Ordering>("ordering")
+var ordering = builder.AddDotnetProject("ordering", "../Folio.Ordering")
     .WithReference(orderingDb)
     .WaitFor(orderingDb)
     .WithReference(customers)
@@ -48,7 +48,7 @@ var ordering = builder.AddProject<Projects.Folio_Ordering>("ordering")
 // Payments sends payment outcomes to Ordering, and Ordering waits for Payments, so this reference has no WaitFor.
 payments.WithReference(ordering);
 
-builder.AddProject<Projects.Folio_WebBff>("web-bff")
+builder.AddDotnetProject("web-bff", "../Folio.WebBff")
     .WithReference(catalogue)
     .WaitFor(catalogue)
     .WithReference(ordering)

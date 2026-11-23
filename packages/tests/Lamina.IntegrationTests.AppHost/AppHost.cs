@@ -7,11 +7,11 @@ builder.AddContainer("payment-provider", WireMockImage.Image)
     .WithHttpEndpoint(targetPort: 80, name: "http")
     .WithHttpHealthCheck("/__admin/health");
 
-builder.AddProject<Projects.Lamina_IntegrationTests_Service>("greeter")
+builder.AddDotnetProject("greeter", "../Lamina.IntegrationTests.Service")
     .WithEnvironment("Greeting", builder.Configuration["Greeting"] ?? "hello")
     .WithHttpHealthCheck("/health");
 
-builder.AddProject<Projects.Lamina_IntegrationTests_Service>("late")
+builder.AddDotnetProject("late", "../Lamina.IntegrationTests.Service")
     .WithEnvironment("HealthyAfter", builder.Configuration["LateBy"] ?? "00:00:03")
     .WithHttpHealthCheck("/health");
 
