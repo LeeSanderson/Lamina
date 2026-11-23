@@ -6,6 +6,7 @@
     <Project Path="src/Lamina.Stubs/Lamina.Stubs.csproj" />
     <Project Path="src/Lamina.Sut.Aspire/Lamina.Sut.Aspire.csproj" />
     <Project Path="src/Lamina.Sut.Deployed/Lamina.Sut.Deployed.csproj" />
+    <Project Path="src/Lamina.XunitV3.Generators/Lamina.XunitV3.Generators.csproj" />
     <Project Path="src/Lamina.XunitV3/Lamina.XunitV3.csproj" />
     <Project Path="src/Lamina/Lamina.csproj" />
   </Folder>

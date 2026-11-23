@@ -17,6 +17,6 @@ public sealed class FolioSuite : LaminaSuite
         builder
             .UseSut(sut => sut.Aspire<Projects.Folio_AppHost>("--Profile", "acceptance").OrDeployed())
             .AddChannel(FolioChannels.Api, isDefault: true)
-            .AddApiDrivers()
+            .AddApiDrivers(FolioChannels.Api)
             .AddDslsFromAssemblyOf<CatalogueDsl>();
 }

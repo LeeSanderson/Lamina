@@ -66,3 +66,6 @@ nunit-*.xml
 
 ## Per-developer suite settings (Lamina reads them after appsettings.json)
 appsettings.local.json
+
+## Verify snapshot runs that don't match (accepted by hand, never in CI)
+*.received.*

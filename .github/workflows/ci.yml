@@ -47,11 +47,16 @@ jobs:
           # - Aspire 17 obsoletes Aspire.AppHost.Sdk and Projects.* references (ASPIRE012), which
           #   Folio's AppHost and Sut.Aspire rely on. Phase 1 stays on Aspire 13.6.
           # - EF Core 11 targets net11.0 only; Folio is net10.0.
-          folio_excludes=(--exclude Aspire. --exclude Microsoft.EntityFrameworkCore.)
+          # - Microsoft.CodeAnalysis.CSharp 5.0.0 is the channel generator's compiler baseline
+          #   (.NET 10 GA), so the generator loads on every SDK 10 compiler.
+          # - Verify 33 fails the build (SC021) until the owner declares a Verify
+          #   maintenance-fee sponsorship or exemption.
+          packages_excludes=(--exclude Aspire. --exclude Microsoft.CodeAnalysis. --exclude Verify)
+          folio_excludes=(--exclude Aspire. --exclude Microsoft.EntityFrameworkCore. --exclude Microsoft.CodeAnalysis.)
           status=0
           for solution in packages/Lamina.slnx folio/Folio.slnx; do
             report="$RUNNER_TEMP/outdated-$(basename "$solution" .slnx).md"
-            excludes=(--exclude Aspire.)
+            excludes=("${packages_excludes[@]}")
             if [ "$solution" = "folio/Folio.slnx" ]; then excludes=("${folio_excludes[@]}"); fi
             if dotnet outdated "$solution" "${excludes[@]}" --fail-on-updates --output-format markdown --output "$report"; then
               echo "### \`$solution\`: all packages up to date" >> "$GITHUB_STEP_SUMMARY"

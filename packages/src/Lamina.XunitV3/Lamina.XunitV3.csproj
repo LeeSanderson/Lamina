@@ -6,6 +6,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lamina\Lamina.csproj" />
+    <ProjectReference Include="..\Lamina.XunitV3.Generators\Lamina.XunitV3.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The channel generator ships inside this package. Project references don't pass analyzers on, so in-repo spec projects
+       also reference Lamina.XunitV3.Generators with OutputItemType="Analyzer". -->
+  <ItemGroup>
+    <None Include="..\Lamina.XunitV3.Generators\bin\$(Configuration)\netstandard2.0\Lamina.XunitV3.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
 </Project>
