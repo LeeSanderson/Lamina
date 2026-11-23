@@ -30,7 +30,7 @@
   </ItemGroup>
   <ItemGroup Label="Folio">
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="17.0.0" />
-    <!-- No stable 17.0.0 yet: 17.0.0-preview.1 is tied to EF Core 11 (net11.0). Moves with the EF Core upgrade (#47). -->
+    <!-- Held on 13.6.5 until a stable 17.0.0 ships: 17.0.0 is only a preview (17.0.0-preview.1). dotnet outdated ignores previews, so it won't flag the stable release; bump it by hand then. -->
     <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.6.5" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
