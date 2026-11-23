@@ -13,6 +13,7 @@ public sealed class ConfigurationTests
 
         run.Sut.Endpoint("web-bff").ShouldBe(new Uri("http://localhost:5180"));
         run.Sut.Endpoint("payments").ShouldBe(new Uri("http://localhost:5183/"));
+        run.Sut.EndpointNames.ShouldBe(["payments", "web-bff"], ignoreOrder: true);
     }
 
     [Fact]

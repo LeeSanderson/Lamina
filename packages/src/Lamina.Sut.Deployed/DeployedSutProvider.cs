@@ -1,14 +1,10 @@
-using System.Globalization;
 using Microsoft.Extensions.Configuration;
 
 namespace Lamina.Sut.Deployed;
 
-internal sealed class DeployedSutProvider(IConfiguration configuration) : ISutProvider
+internal sealed class DeployedSutProvider(IConfiguration configuration, TimeSpan readyTimeout) : ISutProvider
 {
     private const string Section = "Lamina:Sut:Deployed";
-    private const string ReadyTimeoutKey = "Lamina:Sut:ReadyTimeout";
-    private const string TimeoutMultiplierKey = "Lamina:TimeoutMultiplier";
-    private static readonly TimeSpan DefaultReadyTimeout = TimeSpan.FromMinutes(1);
 
     public Task<ISystemUnderTest> StartAsync(CancellationToken ct)
     {
@@ -35,22 +31,11 @@ internal sealed class DeployedSutProvider(IConfiguration configuration) : ISutPr
             metadata[entry.Key] = entry.Value ?? string.Empty;
         }
 
-        return Task.FromResult<ISystemUnderTest>(new DeployedSut(endpoints, readiness, metadata, ReadyTimeout()));
+        return Task.FromResult<ISystemUnderTest>(new DeployedSut(endpoints, readiness, metadata, readyTimeout));
     }
 
     private static Uri ParseEndpoint(IConfigurationSection endpoint) =>
         Uri.TryCreate(endpoint.Value, UriKind.Absolute, out var url) && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps)
             ? url
             : throw new InvalidOperationException($"{endpoint.Path} is '{endpoint.Value}', which is not an absolute http or https URL.");
-
-    private TimeSpan ReadyTimeout()
-    {
-        var timeout = configuration[ReadyTimeoutKey] is { } configured
-            ? TimeSpan.Parse(configured, CultureInfo.InvariantCulture)
-            : DefaultReadyTimeout;
-        var multiplier = configuration[TimeoutMultiplierKey] is { } scale
-            ? double.Parse(scale, CultureInfo.InvariantCulture)
-            : 1;
-        return timeout * multiplier;
-    }
 }

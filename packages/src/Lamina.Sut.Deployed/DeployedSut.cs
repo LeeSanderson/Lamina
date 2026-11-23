@@ -13,6 +13,8 @@ internal sealed class DeployedSut(
 
     public IReadOnlyDictionary<string, string> Metadata => metadata;
 
+    public IReadOnlyCollection<string> EndpointNames => [.. endpoints.Keys];
+
     public Uri Endpoint(string name) =>
         endpoints.TryGetValue(name, out var endpoint)
             ? endpoint

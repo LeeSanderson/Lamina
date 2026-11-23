@@ -21,7 +21,9 @@ internal sealed class AspireSut : ISystemUnderTest
         _app = app;
         _builder = builder;
         _readyTimeout = readyTimeout;
-        _resources = [.. builder.Resources.OfType<IComputeResource>().Where(r => !IsHidden(app, r)).Select(r => r.Name)];
+        var visible = builder.Resources.OfType<IComputeResource>().Where(r => !IsHidden(app, r)).ToList();
+        _resources = [.. visible.Select(r => r.Name)];
+        EndpointNames = [.. visible.Where(HasHttpEndpoint).Select(r => r.Name)];
         Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["provider"] = "aspire",
@@ -32,6 +34,8 @@ internal sealed class AspireSut : ISystemUnderTest
     }
 
     public IReadOnlyDictionary<string, string> Metadata { get; }
+
+    public IReadOnlyCollection<string> EndpointNames { get; }
 
     public Uri Endpoint(string name)
     {
@@ -68,6 +72,9 @@ internal sealed class AspireSut : ISystemUnderTest
     // Aspire adds hidden helper resources, such as a project's "<name>-rebuilder", that never start.
     private static bool IsHidden(DistributedApplication app, IResource resource) =>
         app.ResourceNotifications.TryGetCurrentState(resource.Name, out var current) && current.Snapshot.IsHidden;
+
+    private static bool HasHttpEndpoint(IResource resource) =>
+        resource.Annotations.OfType<EndpointAnnotation>().Any(e => string.Equals(e.Name, "http", StringComparison.Ordinal));
 
     private async Task<string> DescribeUnhealthyResourcesAsync()
     {
