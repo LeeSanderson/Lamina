@@ -68,15 +68,18 @@ public sealed class LaminaBuilder
         ISystemUnderTest? system = null;
         try
         {
-            system = await _sut.Select(services).StartAsync(cancellationToken).ConfigureAwait(false);
+            var started = TimeProvider.System.GetTimestamp();
+            var (providerName, provider) = _sut.Select(services);
+            system = await provider.StartAsync(cancellationToken).ConfigureAwait(false);
             accessor.Sut = system;
             await system.WaitUntilReadyAsync(cancellationToken).ConfigureAwait(false);
+            var startLine = RunDiagnostics.StartLine(providerName, system, TimeProvider.System.GetElapsedTime(started));
             foreach (var hook in services.GetServices<IRunStartHook>())
             {
                 await hook.OnRunStartAsync(system, cancellationToken).ConfigureAwait(false);
             }
 
-            return new LaminaRun(services, system, channels, new TestIdMinter());
+            return new LaminaRun(services, system, channels, new TestIdMinter(), startLine);
         }
         catch
         {

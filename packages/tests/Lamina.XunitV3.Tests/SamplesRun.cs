@@ -11,10 +11,17 @@ public sealed class SamplesRun : IAsyncLifetime
 {
     private readonly ConcurrentBag<SampleResult> _results = [];
 
+    private readonly ConcurrentQueue<string> _diagnostics = [];
+
     public IReadOnlyCollection<SampleResult> Results => _results;
+
+    public IReadOnlyCollection<string> Diagnostics => _diagnostics;
 
     public SampleResult Single(string typeName, string methodName) =>
         _results.Single(r => r.TypeName.EndsWith($".{typeName}", StringComparison.Ordinal) && r.MethodName == methodName);
+
+    public IReadOnlyList<SampleResult> All(string typeName) =>
+        [.. _results.Where(r => r.TypeName.EndsWith($".{typeName}", StringComparison.Ordinal))];
 
     public async ValueTask InitializeAsync()
     {
@@ -23,6 +30,7 @@ public sealed class SamplesRun : IAsyncLifetime
         {
             OnTestPassed = test => _results.Add(new(test.TypeName ?? "", test.MethodName ?? "", Passed: true, test.Output, FailureMessage: null)),
             OnTestFailed = test => _results.Add(new(test.TypeName ?? "", test.MethodName ?? "", Passed: false, test.Output, test.Exception.Message)),
+            OnDiagnosticMessage = message => _diagnostics.Enqueue(message.Message),
         };
         await using var runner = new AssemblyRunner(options);
         await runner.Run();

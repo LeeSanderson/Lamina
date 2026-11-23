@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 
 namespace Lamina;
@@ -8,12 +9,25 @@ namespace Lamina;
 public sealed class SutBuilder
 {
     private const string ProviderKey = "Lamina:Sut:Provider";
+    private const string ReadyTimeoutKey = "Lamina:Sut:ReadyTimeout";
+    private const string TimeoutMultiplierKey = "Lamina:TimeoutMultiplier";
 
     private readonly List<KeyValuePair<string, Func<IServiceProvider, ISutProvider>>> _providers = [];
 
     internal SutBuilder(IConfiguration configuration) => Configuration = configuration;
 
     public IConfiguration Configuration { get; }
+
+    /// <summary>
+    /// Returns how long a provider waits for the SUT to be ready: <c>Lamina:Sut:ReadyTimeout</c> (seconds, or a TimeSpan such as
+    /// <c>00:02:00</c>), else <paramref name="providerDefault"/>, scaled by <c>Lamina:TimeoutMultiplier</c>.
+    /// </summary>
+    public TimeSpan ReadyTimeout(TimeSpan providerDefault)
+    {
+        var timeout = Configuration[ReadyTimeoutKey] is { } configured ? ParseTimeout(configured) : providerDefault;
+        var multiplier = Configuration[TimeoutMultiplierKey] is { } scale ? double.Parse(scale, CultureInfo.InvariantCulture) : 1;
+        return timeout * multiplier;
+    }
 
     public SutBuilder AddProvider(string name, Func<IServiceProvider, ISutProvider> factory)
     {
@@ -26,7 +40,7 @@ public sealed class SutBuilder
         return this;
     }
 
-    internal ISutProvider Select(IServiceProvider services)
+    internal (string Name, ISutProvider Provider) Select(IServiceProvider services)
     {
         if (_providers.Count == 0)
         {
@@ -41,8 +55,13 @@ public sealed class SutBuilder
                 $"{ProviderKey} is '{name}', which is not a registered SUT provider. Registered: {string.Join(", ", _providers.Select(p => p.Key))}.");
         }
 
-        return chosen.Value(services);
+        return (chosen.Key, chosen.Value(services));
     }
+
+    private static TimeSpan ParseTimeout(string configured) =>
+        double.TryParse(configured, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+            ? TimeSpan.FromSeconds(seconds)
+            : TimeSpan.Parse(configured, CultureInfo.InvariantCulture);
 
     private static bool IsNamed(KeyValuePair<string, Func<IServiceProvider, ISutProvider>> provider, string name) =>
         string.Equals(provider.Key, name, StringComparison.OrdinalIgnoreCase);
