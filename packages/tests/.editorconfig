@@ -1,0 +1,3 @@
+[*.cs]
+# Test names describe behaviour; an Async suffix would add noise to every one. See docs/spikes/s1-channel-generator.md.
+dotnet_diagnostic.S4261.severity = none

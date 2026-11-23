@@ -6,4 +6,14 @@
     <!-- Not an exact range ([x]): dotnet outdated never reports updates past one. See docs/spikes/s7-repo-scaffold.md. -->
     <GlobalPackageReference Include="Opinionated.DotNet.CodingStandards" Version="0.0.21" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.3" />
+    <PackageVersion Include="xunit.v3.runner.utility" Version="4.0.3" />
+  </ItemGroup>
 </Project>

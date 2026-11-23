@@ -63,3 +63,6 @@ nunit-*.xml
 .vs/
 .idea/
 *.user
+
+## Per-developer suite settings (Lamina reads them after appsettings.json)
+appsettings.local.json
