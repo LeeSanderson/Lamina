@@ -16,7 +16,7 @@ public static class SutBuilderAspireExtensions
     /// The run is ready once every resource is healthy, within <c>Lamina:Sut:ReadyTimeout</c> (default 120 s)
     /// scaled by <c>Lamina:TimeoutMultiplier</c>.
     /// </summary>
-    [SuppressMessage("Major Code Smell", "S4018:Generic methods should provide type parameters", Justification = "Spec-mandated Aspire<TAppHost>(args) signature; the AppHost type can't be inferred.")]
+    [SuppressMessage("Critical Code Smell", "S4018:Generic methods should provide type parameters", Justification = "TAppHost names the AppHost to start, as in DistributedApplicationTestingBuilder.CreateAsync<T>(); the caller always states it.")]
     public static SutBuilder Aspire<TAppHost>(this SutBuilder sut, params string[] args)
         where TAppHost : class =>
         sut.AddProvider(ProviderName, _ => new AspireSutProvider<TAppHost>(args, sut.ReadyTimeout(DefaultReadyTimeout)));

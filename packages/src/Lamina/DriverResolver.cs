@@ -5,7 +5,7 @@ namespace Lamina;
 
 internal static class DriverResolver
 {
-    [SuppressMessage("Critical Code Smell", "S4018:Generic methods should provide type parameters", Justification = "A service lookup: TCapability is what's asked for.")]
+    [SuppressMessage("Critical Code Smell", "S4018:Generic methods should provide type parameters", Justification = "A service lookup: TCapability is what's asked for, and the caller always states it.")]
     internal static TCapability For<TCapability>(IServiceProvider services, IReadOnlyCollection<string> driverChannels)
         where TCapability : class
     {
