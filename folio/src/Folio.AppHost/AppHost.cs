@@ -28,6 +28,7 @@ var payments = builder.AddProject<Projects.Folio_Payments>("payments")
     .WaitFor(paymentsDb)
     .WithReference(paymentProvider.GetEndpoint("http"))
     .WaitFor(paymentProvider)
+    .WithEnvironment("PaymentProvider__Retry__FirstBackOff", builder.Configuration["Acceptance:PaymentRetryFirstBackOff"])
     .WithHttpHealthCheck(healthPath);
 
 var ordering = builder.AddProject<Projects.Folio_Ordering>("ordering")

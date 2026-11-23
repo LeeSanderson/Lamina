@@ -39,9 +39,10 @@ internal sealed class OrderBook(
         await db.SaveChangesAsync(cancellationToken);
 
         var payment = await payments.CreatePaymentAsync(orderId, order.Amount, cardToken, cancellationToken);
-        if (payment == PaymentAnswer.Declined)
+        if (payment is PaymentAnswer.Declined or PaymentAnswer.Failed)
         {
-            order = await ApplyOutcomeAsync(order, PaymentOutcome.Declined, cancellationToken);
+            var outcome = payment == PaymentAnswer.Declined ? PaymentOutcome.Declined : PaymentOutcome.Failed;
+            order = await ApplyOutcomeAsync(order, outcome, cancellationToken);
         }
 
         return Placement.Placed(order);

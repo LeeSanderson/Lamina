@@ -11,8 +11,14 @@ namespace Lamina.Stubs.WireMock;
 public abstract class WireMockStub : LaminaStub
 {
     // In WireMock a lower number wins: a spec's rules beat the run's defaults.
+    private const int FaultPriority = 1;
     private const int RulePriority = 5;
     private const int DefaultPriority = 1000;
+    private const string Spent = "lamina:spent";
+
+    private readonly Lock _scenarioGate = new();
+    private readonly List<string> _scenarios = [];
+    private int _scenarioCount;
 
     protected static StubRequest Post(string path) => new("POST", path);
 
@@ -50,34 +56,76 @@ public abstract class WireMockStub : LaminaStub
     protected Task Default(Guid id, StubRequest request, StubResponse response)
     {
         RequireRunStart($"default {request}");
-        return PostMappingAsync(Mapping(id, $"lamina:default:{GetType().Name}", DefaultPriority, request, response));
+        return PostMappingAsync(Mapping(id, $"lamina:default:{GetType().Name}", DefaultPriority, request, response.ToJson()));
     }
 
     protected override async Task DeleteRulesAsync(IReadOnlyList<string> ids)
     {
         var guids = new JsonArray([.. ids.Select<string, JsonNode?>(id => new JsonObject { ["Guid"] = id })]);
         using var delete = new HttpRequestMessage(HttpMethod.Delete, Admin("mappings")) { Content = Json(guids) };
-        using var response = await Http.SendAsync(delete).ConfigureAwait(false);
-        await ReadSuccessAsync(response, "delete this spec's rules").ConfigureAwait(false);
+        using (var response = await Http.SendAsync(delete).ConfigureAwait(false))
+        {
+            await ReadSuccessAsync(response, "delete this spec's rules").ConfigureAwait(false);
+        }
+
+        string[] scenarios;
+        lock (_scenarioGate)
+        {
+            scenarios = [.. _scenarios];
+            _scenarios.Clear();
+        }
+
+        foreach (var scenario in scenarios)
+        {
+            using var response = await Http.DeleteAsync(Admin($"scenarios/{Uri.EscapeDataString(scenario)}")).ConfigureAwait(false);
+            await ReadSuccessAsync(response, $"delete this spec's scenario {scenario}").ConfigureAwait(false);
+        }
     }
 
-    internal async Task AddRuleAsync(StubRequest request, StubResponse response)
-    {
-        var matcher = request.ToJson();
-        RequireKeyedToSpec($"rule {request}", matcher.ToJsonString());
-        var id = Guid.NewGuid();
-        TrackRule(id.ToString());
-        await PostMappingAsync(Mapping(id, $"lamina:{TestId}:{GetType().Name}", RulePriority, request, response)).ConfigureAwait(false);
-    }
+    internal Task AddRuleAsync(StubRequest request, StubResponse response) =>
+        AddMappingAsync($"rule {request}", RulePriority, request, response.ToJson(), times: null);
 
-    private static JsonObject Mapping(Guid id, string title, int priority, StubRequest request, StubResponse response) => new()
+    /// <summary>
+    /// Adds a fault for this spec. With <paramref name="times"/>, the fault is a per-spec scenario that answers that
+    /// many times and then stops matching, so requests fall through to the spec's rules or the run default.
+    /// </summary>
+    internal Task AddFaultAsync(StubRequest request, JsonObject response, int? times) =>
+        AddMappingAsync($"fault {request}", FaultPriority, request, response, times);
+
+    private static JsonObject Mapping(Guid id, string title, int priority, StubRequest request, JsonObject response) => new()
     {
         ["Guid"] = id.ToString(),
         ["Title"] = title,
         ["Priority"] = priority,
         ["Request"] = request.ToJson(),
-        ["Response"] = response.ToJson(),
+        ["Response"] = response,
     };
+
+    private async Task AddMappingAsync(string what, int priority, StubRequest request, JsonObject response, int? times)
+    {
+        var matcher = request.ToJson();
+        RequireKeyedToSpec(what, matcher.ToJsonString());
+        var id = Guid.NewGuid();
+        var mapping = Mapping(id, $"lamina:{TestId}:{GetType().Name}", priority, request, response);
+        if (times is { } count)
+        {
+            string scenario;
+            lock (_scenarioGate)
+            {
+                scenario = $"{TestId}-{++_scenarioCount}";
+                _scenarios.Add(scenario);
+            }
+
+            // A scenario starts with no state, which is what a mapping with no WhenStateIs matches. After
+            // TimesInSameState matches it moves on to SetStateTo, and the mapping stops matching.
+            mapping["Scenario"] = scenario;
+            mapping["SetStateTo"] = Spent;
+            mapping["TimesInSameState"] = count;
+        }
+
+        TrackRule(id.ToString());
+        await PostMappingAsync(mapping).ConfigureAwait(false);
+    }
 
     private static StringContent Json(JsonNode body) => new(body.ToJsonString(), Encoding.UTF8, "application/json");
 

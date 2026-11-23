@@ -33,6 +33,10 @@ namespace Folio.Payments.Migrations
                         .HasColumnType("numeric(12,2)")
                         .HasColumnName("amount");
 
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
                     b.Property<string>("CardToken")
                         .IsRequired()
                         .HasMaxLength(200)

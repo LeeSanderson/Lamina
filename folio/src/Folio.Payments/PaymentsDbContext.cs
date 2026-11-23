@@ -27,6 +27,7 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
         payment.Property(p => p.ProviderPaymentId).HasColumnName("provider_payment_id").HasMaxLength(TextMaxLength);
         payment.Property(p => p.CreatedAt).HasColumnName("created_at");
         payment.Property(p => p.NextAttemptAt).HasColumnName("next_attempt_at");
+        payment.Property(p => p.Attempts).HasColumnName("attempts");
         payment.Ignore(p => p.AmountInPence);
         payment.Ignore(p => p.Outcome);
     }

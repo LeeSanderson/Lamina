@@ -17,6 +17,7 @@ public sealed class PaymentProviderStub : WireMockStub
     private const string PaymentsPath = "/payments";
     private const string PaymentsResource = "payments";
     private const string WebhookPath = "/webhooks/payment-provider";
+    private const string IdempotencyKeyHeader = "Idempotency-Key";
     private const int Created = 201;
     private const int PaymentRequired = 402;
 
@@ -31,13 +32,27 @@ public sealed class PaymentProviderStub : WireMockStub
         When(Create(card)).Respond(PaymentRequired, new { error = "card_declined" });
 
     /// <summary>
+    /// Takes the next <paramref name="times"/> payments created with the aliased <paramref name="card"/> token, but
+    /// loses the answer: Payments gets a 201 with an empty body, so it can't tell whether the customer was charged.
+    /// </summary>
+    public Task LosesAnswer(string card, int times) =>
+        When(Create(card)).WillAnswerEmpty(Created, times);
+
+    /// <summary>
+    /// Returns the Idempotency-Key of every payment create the provider received for the aliased
+    /// <paramref name="card"/> token, oldest first.
+    /// </summary>
+    public async Task<IReadOnlyList<string?>> CreateIdempotencyKeys(string card) =>
+        [.. (await Journal(Create(card))).Select(e => e.Header(IdempotencyKeyHeader))];
+
+    /// <summary>
     /// Waits for the provider to accept a payment created with the aliased <paramref name="card"/> token, then confirms it
     /// by sending Payments the <c>payment.succeeded</c> webhook for that payment.
     /// </summary>
     public async Task ConfirmsPayment(string card)
     {
         var accepted = await Scope.Services.GetRequiredService<Eventually>().Until(
-            async () => (await Journal(Create(card))).Where(e => e.Status == Created).ToList(),
+            async () => (await Journal(Create(card))).Where(e => e.Status == Created && !e.AnswerLost).ToList(),
             creates => creates.Count > 0,
             TimeSpan.FromSeconds(10),
             $"the payment provider should have accepted a payment created with card {card}");

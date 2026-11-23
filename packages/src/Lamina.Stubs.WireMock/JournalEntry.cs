@@ -39,6 +39,13 @@ public sealed class JournalEntry
     /// </summary>
     public JsonNode? ResponseBody => Response?["BodyAsJson"];
 
+    /// <summary>
+    /// Gets a value indicating whether a fault spoiled the answer, so the caller got an empty or garbage body: the
+    /// request reached the system, but its answer was lost.
+    /// </summary>
+    public bool AnswerLost =>
+        Response?["FaultType"]?.ToString() is { Length: > 0 } fault && !string.Equals(fault, "NONE", StringComparison.OrdinalIgnoreCase);
+
     private JsonObject? Request => _entry["Request"] as JsonObject;
 
     private JsonObject? Response => _entry["Response"] as JsonObject;

@@ -8,6 +8,7 @@ builder.AddNpgsqlDbContext<PaymentsDbContext>("payments-db");
 builder.Services.AddSingleton(TimeProvider.System);
 builder.AddPaymentProviderClient();
 builder.AddOrderingClient();
+builder.AddPaymentRetries();
 
 var app = builder.Build();
 app.MapDefaultEndpoints();

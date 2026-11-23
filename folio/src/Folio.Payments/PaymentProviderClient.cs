@@ -79,7 +79,7 @@ internal enum ProviderAnswer
 
 internal static class PaymentProviderRegistration
 {
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
 
     internal static void AddPaymentProviderClient(this IHostApplicationBuilder builder)
     {

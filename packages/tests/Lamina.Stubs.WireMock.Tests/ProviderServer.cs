@@ -19,9 +19,24 @@ public sealed class ProviderServer : IAsyncDisposable
     public Task<LaminaRun> StartRunAsync() =>
         new WireMockSuite(Url).StartAsync(TestContext.Current.CancellationToken);
 
-    public async Task<HttpStatusCode> CreatePaymentAsync(string card)
+    public IReadOnlyList<string> ScenarioNames => [.. _server.Scenarios.Select(s => s.Name)];
+
+    public async Task<HttpStatusCode> CreatePaymentAsync(string card) =>
+        (await CreatePaymentAnsweredAsync(card)).Status;
+
+    public async Task<(HttpStatusCode Status, string Body)> CreatePaymentAnsweredAsync(string card)
     {
         using var response = await _http.PostAsJsonAsync(
+            new Uri(Url, "payments"),
+            new { amount = 999, currency = "GBP", cardToken = card, reference = $"order-{card}" },
+            TestContext.Current.CancellationToken);
+        return (response.StatusCode, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    public async Task<HttpStatusCode> CreatePaymentWithinAsync(string card, TimeSpan timeout)
+    {
+        using var http = new HttpClient { Timeout = timeout };
+        using var response = await http.PostAsJsonAsync(
             new Uri(Url, "payments"),
             new { amount = 999, currency = "GBP", cardToken = card, reference = $"order-{card}" },
             TestContext.Current.CancellationToken);

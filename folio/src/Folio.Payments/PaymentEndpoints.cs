@@ -12,6 +12,8 @@ internal static class PaymentEndpoints
         CreatePaymentRequest request,
         PaymentsDbContext db,
         PaymentProviderClient provider,
+        PaymentRetryPolicy policy,
+        PaymentRetrySignal retries,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
@@ -27,7 +29,7 @@ internal static class PaymentEndpoints
             return Results.Ok(View(existing));
         }
 
-        var payment = NewPayment(request, time);
+        var payment = NewPayment(request, time.GetUtcNow(), policy);
         if (!await TryRecordAsync(db, payment, cancellationToken))
         {
             return Results.Ok(View((await FindForOrderAsync(db, request.OrderId, cancellationToken))!));
@@ -36,15 +38,20 @@ internal static class PaymentEndpoints
         var reply = await provider.CreatePaymentAsync(
             new PaymentCreate(payment.Reference, payment.IdempotencyKey, payment.AmountInPence, payment.CardToken),
             cancellationToken);
-        payment.Record(reply);
+        payment.Record(reply, time.GetUtcNow(), policy);
         await db.SaveChangesAsync(cancellationToken);
+        if (payment.Status == PaymentStatus.AwaitingSubmission)
+        {
+            retries.Wake();
+        }
+
         return Results.Ok(View(payment));
     }
 
-    private static Payment NewPayment(CreatePaymentRequest request, TimeProvider time)
+    // Recorded as already submitted once, and leased so the retry worker leaves it alone while this call is in flight.
+    private static Payment NewPayment(CreatePaymentRequest request, DateTimeOffset now, PaymentRetryPolicy policy)
     {
         var id = Guid.CreateVersion7();
-        var now = time.GetUtcNow();
         return new Payment
         {
             Id = id,
@@ -55,7 +62,8 @@ internal static class PaymentEndpoints
             CardToken = request.CardToken,
             Status = PaymentStatus.AwaitingSubmission,
             CreatedAt = now,
-            NextAttemptAt = now,
+            Attempts = 1,
+            NextAttemptAt = now + policy.SubmissionLease,
         };
     }
 

@@ -3,11 +3,14 @@ namespace Folio.Payments;
 internal sealed class OrderingClient(HttpClient http)
 {
     // Ordering ignores an outcome for an order that's already settled, so this is safe to repeat.
-    internal async Task RecordPaymentConfirmedAsync(Guid orderId, CancellationToken cancellationToken)
+    internal Task RecordPaymentConfirmedAsync(Guid orderId, CancellationToken cancellationToken) =>
+        RecordPaymentOutcomeAsync(orderId, PaymentOutcome.Confirmed, cancellationToken);
+
+    internal async Task RecordPaymentOutcomeAsync(Guid orderId, PaymentOutcome outcome, CancellationToken cancellationToken)
     {
         using var response = await http.PostAsJsonAsync(
             new Uri($"orders/{orderId}/payment-outcome", UriKind.Relative),
-            new { outcome = "Confirmed" },
+            new { outcome },
             cancellationToken);
         response.EnsureSuccessStatusCode();
     }

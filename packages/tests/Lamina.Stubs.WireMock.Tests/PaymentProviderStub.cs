@@ -15,6 +15,24 @@ public sealed class PaymentProviderStub : WireMockStub
     public Task WillAccept(string card, string paymentId) =>
         When(Create(card)).Respond(201, new { id = paymentId, status = "pending" });
 
+    public Task WillFail(string card, int status, int times) =>
+        When(Create(card)).WillFail(status, times);
+
+    public Task LosesAnswer(string card, int times) =>
+        When(Create(card)).WillAnswerEmpty(201, times);
+
+    public Task AnswersGarbage(string card, int times) =>
+        When(Create(card)).WillAnswerMalformed(201, times);
+
+    public Task NeverAnswers(string card) =>
+        When(Create(card)).WillTimeOut();
+
+    public Task AcceptsSlowly(string card, TimeSpan delay) =>
+        When(Create(card)).WillDelay(delay, new StubResponse(201, new { id = "pay_slow", status = "pending" }));
+
+    public Task LosesAnyAnswer(int times) =>
+        When(Post("/payments")).WillAnswerEmpty(201, times);
+
     public Task WillDeclineAnyCard() =>
         When(Post("/payments")).Respond(402);
 
