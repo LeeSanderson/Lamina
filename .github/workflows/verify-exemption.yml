@@ -1,0 +1,62 @@
+name: verify-exemption
+
+# Lamina claims Verify's OpenSource maintenance-fee exemption (#48) through
+# Verify_SponsorshipExemptionUntil in Directory.Build.props. Verify caps it at 12 months and
+# every build that references Verify fails with SC021 once it runs out. This opens a renewal
+# issue from about two months before then (#49). Runs monthly, so it works without pushes.
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+    inputs:
+      today:
+        description: Check as if it were this date (yyyy-MM-dd); empty means today
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the exemption's end date
+        id: exemption
+        env:
+          TODAY: ${{ inputs.today }}
+        run: python3 .github/scripts/verify-exemption.py Directory.Build.props ${TODAY:+"$TODAY"}
+
+      - name: Open a renewal issue
+        if: steps.exemption.outputs.due == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UNTIL: ${{ steps.exemption.outputs.until }}
+          EXPIRES: ${{ steps.exemption.outputs.expires }}
+        run: |
+          title="Renew Verify's OpenSource exemption (covered until $UNTIL)"
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          if [ -n "$existing" ]; then
+            echo "Renewal issue #$existing is already open."
+            exit 0
+          fi
+          gh issue create --title "$title" --label enhancement,ready-for-human --body "$(cat <<EOF
+          Opened by the \`verify-exemption\` workflow (#49).
+
+          Lamina claims Verify's \`OpenSource\` maintenance-fee exemption through \`$UNTIL\`. From **$EXPIRES**, every build that references Verify fails with SponsorCheck SC021.
+
+          To renew:
+
+          1. Confirm Lamina is still open source and earns no revenue. Voluntary donations and sponsorships don't count as revenue. If that's no longer true, the exemption doesn't apply: sponsor Verify or replace it instead (see #48).
+          2. In \`Directory.Build.props\`, move \`Verify_SponsorshipExemptionUntil\` on, to no more than 12 months from the month you renew (format \`yyyy-MM\`).
+          3. Build \`packages/Lamina.slnx\` and check there's no SC021, then push and close this issue.
+
+          This needs the owner: only they can confirm the no-revenue condition.
+          EOF
+          )"
