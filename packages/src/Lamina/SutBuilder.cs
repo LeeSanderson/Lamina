@@ -12,7 +12,6 @@ public sealed class SutBuilder
     private const string ProviderKey = "Lamina:Sut:Provider";
     private const string AspireProvider = "aspire";
     private const string ReadyTimeoutKey = "Lamina:Sut:ReadyTimeout";
-    private const string TimeoutMultiplierKey = "Lamina:TimeoutMultiplier";
 
     private readonly List<KeyValuePair<string, Func<IServiceProvider, ISutProvider>>> _providers = [];
 
@@ -27,7 +26,7 @@ public sealed class SutBuilder
     public TimeSpan ReadyTimeout(TimeSpan providerDefault)
     {
         var timeout = Configuration[ReadyTimeoutKey] is { } configured ? ParseTimeout(configured) : providerDefault;
-        var multiplier = Configuration[TimeoutMultiplierKey] is { } scale ? double.Parse(scale, CultureInfo.InvariantCulture) : 1;
+        var multiplier = TimeoutMultiplier.Read(Configuration);
         return timeout * multiplier;
     }
 

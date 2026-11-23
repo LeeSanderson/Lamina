@@ -18,10 +18,17 @@ public sealed class CatalogueDsl(ICatalogueDriver driver) : LaminaDsl
 
     public async Task ConfirmInStock(string title, int availableQuantity)
     {
-        var book = await driver.ReadBookAsync(Recall(BookId(title)));
+        var bookId = Recall(BookId(title));
 
-        book.Title.ShouldBe(Alias(title));
-        book.AvailableQuantity.ShouldBe(availableQuantity);
+        await Eventually.Until(
+            () => driver.ReadBookAsync(bookId),
+            book =>
+            {
+                book.Title.ShouldBe(Alias(title));
+                book.AvailableQuantity.ShouldBe(availableQuantity);
+            },
+            TimeSpan.FromSeconds(5),
+            $"{title} should have {availableQuantity} in stock");
     }
 
     private static Key<string> BookId(string title) => new($"book:{title}");

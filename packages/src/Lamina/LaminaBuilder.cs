@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Lamina;
 
@@ -63,6 +64,9 @@ public sealed class LaminaBuilder
         Services.AddSingleton<ISystemUnderTest>(sp => new BorrowedSut(sp.GetRequiredService<SutAccessor>().Sut));
         Services.AddScoped<SpecScopeHolder>();
         Services.AddScoped(sp => sp.GetRequiredService<SpecScopeHolder>().Scope);
+        Services.TryAddSingleton(TimeProvider.System);
+        var multiplier = TimeoutMultiplier.Read(_configuration);
+        Services.AddScoped(sp => new Eventually(sp.GetRequiredService<SpecScope>(), sp.GetRequiredService<TimeProvider>(), multiplier));
 
         var services = Services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         ISystemUnderTest? system = null;
