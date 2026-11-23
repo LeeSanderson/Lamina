@@ -32,8 +32,26 @@ public sealed class Payment
     {
         PaymentStatus.Pending => PaymentOutcome.Pending,
         PaymentStatus.Declined => PaymentOutcome.Declined,
+        PaymentStatus.Confirmed => PaymentOutcome.Confirmed,
         _ => PaymentOutcome.Unknown,
     };
+
+    /// <summary>
+    /// Records that the provider confirmed the payment, under its id <paramref name="providerPaymentId"/>. Returns false,
+    /// changing nothing, when the payment was declined.
+    /// </summary>
+    internal bool Confirm(string? providerPaymentId)
+    {
+        if (Status == PaymentStatus.Declined)
+        {
+            return false;
+        }
+
+        Status = PaymentStatus.Confirmed;
+        ProviderPaymentId ??= providerPaymentId;
+        NextAttemptAt = null;
+        return true;
+    }
 
     internal void Record(ProviderReply reply)
     {
@@ -61,6 +79,7 @@ public enum PaymentStatus
     AwaitingSubmission,
     Pending,
     Declined,
+    Confirmed,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<PaymentOutcome>))]
@@ -68,5 +87,6 @@ public enum PaymentOutcome
 {
     Pending,
     Declined,
+    Confirmed,
     Unknown,
 }

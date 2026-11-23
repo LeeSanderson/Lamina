@@ -10,4 +10,9 @@ public sealed class PaymentProviderDsl(PaymentProviderStub stub) : LaminaDsl
     /// The provider declines every payment the spec makes with <paramref name="card"/>.
     /// </summary>
     public Task WillDecline(string card) => stub.WillDecline(Alias(card));
+
+    /// <summary>
+    /// The provider confirms, by webhook, the payment the spec made with <paramref name="card"/>, once it has accepted it.
+    /// </summary>
+    public Task ConfirmsPayment(string card) => stub.ConfirmsPayment(Alias(card));
 }

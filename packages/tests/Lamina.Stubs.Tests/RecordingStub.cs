@@ -19,6 +19,8 @@ internal sealed class RecordingStub(List<string> events) : LaminaStub
 
     public string AliasFor(string name) => Scope.Aliases.For(name);
 
+    public Task Notify(string endpoint, string path, object body) => SendWebhook(endpoint, path, body);
+
     protected override Task InstallDefaults()
     {
         AddDefault();

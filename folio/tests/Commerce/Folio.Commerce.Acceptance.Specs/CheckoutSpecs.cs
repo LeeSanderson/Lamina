@@ -18,4 +18,35 @@ public abstract class CheckoutSpecs : FolioSpec
         await Shopping.ConfirmOrderRejected(reason: "PaymentDeclined");
         await Catalogue.ConfirmInStock("Dune", 1);
     }
+
+    [Fact]
+    public async Task OrderIsConfirmedWhenTheProviderConfirmsPaymentByWebhook()
+    {
+        await Shopping.AsStaff("Sam");
+        await Catalogue.AddBook(ABook("Dune").WithStock(2));
+
+        await Shopping.AsCustomer("Chris");
+        await Shopping.PlaceOrder(title: "Dune", card: "visa");
+        await Shopping.ConfirmOrderPending();
+
+        await PaymentProvider.ConfirmsPayment(card: "visa");
+
+        await Shopping.ConfirmOrderConfirmed();
+    }
+
+    [Fact]
+    public async Task ARepeatedConfirmationWebhookCommitsTheStockOnce()
+    {
+        await Shopping.AsStaff("Sam");
+        await Catalogue.AddBook(ABook("Dune").WithStock(2));
+
+        await Shopping.AsCustomer("Chris");
+        await Shopping.PlaceOrder(title: "Dune", card: "visa");
+
+        await PaymentProvider.ConfirmsPayment(card: "visa");
+        await PaymentProvider.ConfirmsPayment(card: "visa");
+
+        await Shopping.ConfirmOrderConfirmed();
+        await Catalogue.ConfirmInStock("Dune", 1);
+    }
 }

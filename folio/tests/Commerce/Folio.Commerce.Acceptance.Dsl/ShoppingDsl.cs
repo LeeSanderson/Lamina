@@ -7,6 +7,8 @@ namespace Folio.Commerce.Acceptance.Dsl;
 [SuppressMessage("Minor Code Smell", "S4261:Methods should be named according to their synchronicities", Justification = "DSL methods read as domain language in specs.")]
 public sealed class ShoppingDsl(IShoppingDriver driver) : LaminaDsl
 {
+    private const string Pending = "Pending";
+    private const string Confirmed = "Confirmed";
     private const string Rejected = "Rejected";
 
     public Task AsCustomer(string name) => driver.SignInAsCustomerAsync(Alias(name));
@@ -20,6 +22,28 @@ public sealed class ShoppingDsl(IShoppingDriver driver) : LaminaDsl
     {
         var orderId = await driver.PlaceOrderAsync(Recall(CommerceKeys.BookId(title)), 1, Alias(card));
         Remember(CommerceKeys.Order, orderId);
+    }
+
+    /// <summary>
+    /// Checks, without waiting, that the spec's order is still waiting for its payment.
+    /// </summary>
+    public async Task ConfirmOrderPending()
+    {
+        var order = await driver.ReadOrderAsync(Recall(CommerceKeys.Order));
+        order.Status.ShouldBe(Pending, "the order should be waiting for its payment");
+    }
+
+    /// <summary>
+    /// Waits for the spec's order to become Confirmed.
+    /// </summary>
+    public Task ConfirmOrderConfirmed()
+    {
+        var orderId = Recall(CommerceKeys.Order);
+        return Eventually.Until(
+            () => driver.ReadOrderAsync(orderId),
+            order => order.Status.ShouldBe(Confirmed),
+            TimeSpan.FromSeconds(10),
+            $"the order should be {Confirmed}");
     }
 
     /// <summary>
