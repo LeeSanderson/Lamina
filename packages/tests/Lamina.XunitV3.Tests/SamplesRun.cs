@@ -25,6 +25,9 @@ public class SamplesRun : IAsyncLifetime
 
     public IReadOnlyCollection<string> Diagnostics => _diagnostics;
 
+    protected static string SamplesAssembly =>
+        Path.GetFullPath(typeof(SamplesRun).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(a => a.Key == "SamplesAssembly").Value!);
+
     public SampleResult Single(string typeName, string methodName) =>
         _results.Single(r => r.TypeName.EndsWith($".{typeName}", StringComparison.Ordinal) && r.MethodName == methodName);
 
@@ -33,11 +36,10 @@ public class SamplesRun : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        var samples = typeof(SamplesRun).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(a => a.Key == "SamplesAssembly").Value!;
-        var options = new AssemblyRunnerOptions(Path.GetFullPath(samples))
+        var options = new AssemblyRunnerOptions(PrepareAssembly())
         {
-            OnTestPassed = test => _results.Add(new(test.TypeName ?? "", test.MethodName ?? "", Passed: true, test.Output, FailureMessage: null, test.Traits)),
-            OnTestFailed = test => _results.Add(new(test.TypeName ?? "", test.MethodName ?? "", Passed: false, test.Output, test.Exception.Message, test.Traits)),
+            OnTestPassed = test => _results.Add(new(test.TypeName ?? "", test.MethodName ?? "", test.TestDisplayName, Passed: true, test.Output, FailureMessage: null, test.Traits)),
+            OnTestFailed = test => _results.Add(new(test.TypeName ?? "", test.MethodName ?? "", test.TestDisplayName, Passed: false, test.Output, test.Exception.Message, test.Traits)),
             OnDiagnosticMessage = message => _diagnostics.Enqueue(message.Message),
         };
         _filter(options.Filters);
@@ -45,9 +47,14 @@ public class SamplesRun : IAsyncLifetime
         await runner.Run();
     }
 
-    public ValueTask DisposeAsync()
+    public virtual ValueTask DisposeAsync()
     {
         GC.SuppressFinalize(this);
         return ValueTask.CompletedTask;
     }
+
+    /// <summary>
+    /// Returns the samples assembly to run. A subclass can copy it elsewhere first, for example to add settings.
+    /// </summary>
+    protected virtual string PrepareAssembly() => SamplesAssembly;
 }

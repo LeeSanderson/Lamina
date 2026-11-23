@@ -22,12 +22,16 @@ public abstract class LaminaSuite
         return await builder.StartAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    protected abstract void Configure(LaminaBuilder builder);
-
-    private IConfigurationRoot ReadConfiguration() =>
+    /// <summary>
+    /// Reads the suite's configuration: <c>appsettings.json</c>, then <c>appsettings.local.json</c>, then environment variables.
+    /// Run settings read before the run starts, such as <c>Lamina:Repeat</c> at discovery, come from here too.
+    /// </summary>
+    public IConfigurationRoot ReadConfiguration() =>
         new ConfigurationBuilder()
             .AddJsonFile(Path.Combine(SettingsDirectory, "appsettings.json"), optional: true, reloadOnChange: false)
             .AddJsonFile(Path.Combine(SettingsDirectory, "appsettings.local.json"), optional: true, reloadOnChange: false)
             .AddEnvironmentVariables()
             .Build();
+
+    protected abstract void Configure(LaminaBuilder builder);
 }

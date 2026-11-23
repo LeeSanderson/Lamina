@@ -3,6 +3,7 @@ using Lamina.XunitV3;
 using Lamina.XunitV3.Tests.Samples;
 
 [assembly: AssemblyFixture(typeof(LaminaFixture<SampleSuite>))]
+[assembly: TestFramework(typeof(LaminaTestFramework<SampleSuite>))]
 
 namespace Lamina.XunitV3.Tests.Samples;
 
