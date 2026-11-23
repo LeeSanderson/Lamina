@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\packages\src\Lamina.Dsl\Lamina.Dsl.csproj" />
+    <ProjectReference Include="..\..\..\..\packages\src\Lamina.Stubs.WireMock\Lamina.Stubs.WireMock.csproj" />
   </ItemGroup>
 
 </Project>

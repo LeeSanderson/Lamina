@@ -9,5 +9,7 @@ public abstract class FolioSpec : LaminaSpec<FolioSuite>
 
     protected ShoppingDsl Shopping => Dsl<ShoppingDsl>();
 
+    protected PaymentProviderDsl PaymentProvider => Dsl<PaymentProviderDsl>();
+
     protected static BookBuilder ABook(string title) => new(title);
 }
