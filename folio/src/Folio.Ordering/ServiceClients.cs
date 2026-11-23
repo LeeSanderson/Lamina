@@ -98,5 +98,6 @@ internal enum PaymentAnswer
 {
     Pending,
     Declined,
+    Confirmed,
     Unknown,
 }

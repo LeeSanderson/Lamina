@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Http.Json;
 
 namespace Lamina.Stubs;
 
@@ -9,6 +11,9 @@ namespace Lamina.Stubs;
 /// </summary>
 public abstract class LaminaStub : IAsyncDisposable
 {
+    // The same baggage key Lamina.Drivers.Http puts on a spec's requests.
+    private const string TestIdBaggageKey = "lamina.test";
+
     private readonly Lock _gate = new();
     private readonly List<string> _ruleIds = [];
     private SpecScope? _scope;
@@ -92,6 +97,30 @@ public abstract class LaminaStub : IAsyncDisposable
             throw new InvalidOperationException(
                 $"{GetType().Name}: {what} matches every spec's requests, so it can only be installed from InstallDefaults() at run start. " +
                 "Inside a spec, add a rule keyed to an aliased value instead.");
+        }
+    }
+
+    /// <summary>
+    /// Sends a callback from the external system to the system under test: posts <paramref name="body"/> as JSON to
+    /// <paramref name="path"/> on the SUT's <paramref name="endpoint"/>, carrying the spec's test ID as baggage. Throws
+    /// when the SUT doesn't answer with a success status.
+    /// </summary>
+    [SuppressMessage("Minor Code Smell", "S4261:Methods should be named according to their synchronicities", Justification = "Named by the stub abstraction design (Plan.md §6.5).")]
+    protected async Task SendWebhook(string endpoint, string path, object body)
+    {
+        var target = new Uri(Context.Sut.Endpoint(endpoint), path);
+        using var content = JsonContent.Create(body);
+
+        // HttpClient's diagnostics handler writes the current Activity's baggage as the W3C baggage header.
+        using (new Activity("Lamina.Spec").SetBaggage(TestIdBaggageKey, TestId).Start())
+        {
+            using var response = await Http.PostAsync(target, content).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var answer = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                throw new InvalidOperationException(
+                    $"{GetType().Name}: the webhook to {endpoint} {path} was refused ({response.StatusCode:D}): {answer}");
+            }
         }
     }
 
