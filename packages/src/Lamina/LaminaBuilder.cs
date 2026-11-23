@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -12,6 +13,7 @@ public sealed class LaminaBuilder
     private readonly IConfigurationRoot _configuration;
     private readonly SutBuilder _sut;
     private readonly List<string> _channels = [];
+    private readonly Dictionary<Type, List<string>> _driverChannels = [];
     private string? _defaultChannel;
 
     internal LaminaBuilder(IConfigurationRoot configuration)
@@ -53,6 +55,27 @@ public sealed class LaminaBuilder
         return this;
     }
 
+    /// <summary>
+    /// Registers <typeparamref name="TDriver"/> as the <typeparamref name="TCapability"/> driver on <paramref name="channel"/>, one instance per spec.
+    /// A spec on a channel with no driver for the capability gets the default channel's driver, and its footer notes the fallback.
+    /// </summary>
+    [SuppressMessage("Critical Code Smell", "S4018:Generic methods should provide type parameters", Justification = "A registration: the caller always names the capability and its driver.")]
+    public LaminaBuilder AddDriver<TCapability, TDriver>(string channel)
+        where TCapability : class
+        where TDriver : class, TCapability
+    {
+        Services.AddKeyedScoped<TCapability, TDriver>(channel);
+        if (!_driverChannels.TryGetValue(typeof(TCapability), out var driverChannels))
+        {
+            driverChannels = [];
+            _driverChannels.Add(typeof(TCapability), driverChannels);
+            Services.AddScoped(services => DriverResolver.For<TCapability>(services, driverChannels));
+        }
+
+        driverChannels.Add(channel);
+        return this;
+    }
+
     internal async Task<LaminaRun> StartAsync(CancellationToken cancellationToken)
     {
         var channels = new ChannelSet(
@@ -61,6 +84,7 @@ public sealed class LaminaBuilder
         var accessor = new SutAccessor();
         Services.AddSingleton<IConfiguration>(_ => _configuration);
         Services.AddSingleton(accessor);
+        Services.AddSingleton(channels);
         Services.AddSingleton<ISystemUnderTest>(sp => new BorrowedSut(sp.GetRequiredService<SutAccessor>().Sut));
         Services.AddScoped<SpecScopeHolder>();
         Services.AddScoped(sp => sp.GetRequiredService<SpecScopeHolder>().Scope);

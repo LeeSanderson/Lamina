@@ -9,6 +9,7 @@ namespace Lamina;
 public sealed class SpecScope : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, object> _remembered = new(StringComparer.Ordinal);
+    private readonly ConcurrentQueue<string> _fallbacks = new();
     private readonly AsyncServiceScope _services;
     private int _disposed;
 
@@ -35,7 +36,7 @@ public sealed class SpecScope : IAsyncDisposable
     public IServiceProvider Services => _services.ServiceProvider;
 
     /// <summary>
-    /// Gets one line naming the test ID, the channel and the aliases in play, for test output and failures.
+    /// Gets one line naming the test ID, the channel, the aliases in play and any driver fallbacks, for test output and failures.
     /// </summary>
     public string Summary
     {
@@ -43,7 +44,7 @@ public sealed class SpecScope : IAsyncDisposable
         {
             var aliases = Aliases.InPlay;
             var described = aliases.Count == 0 ? "none" : string.Join(", ", aliases.Select(a => $"{a.Key} -> {a.Value}"));
-            return $"Test {TestId} on '{Channel}' · aliases: {described}";
+            return $"Test {TestId} on '{Channel}' · aliases: {described}" + string.Concat(_fallbacks.Select(f => $" · fell back: {f}"));
         }
     }
 
@@ -60,6 +61,8 @@ public sealed class SpecScope : IAsyncDisposable
     public T Recall<T>(Key<T> key, T orDefault)
         where T : notnull =>
         _remembered.TryGetValue(key.Name, out var value) ? Typed(key, value) : orDefault;
+
+    internal void NoteFallback(string fallback) => _fallbacks.Enqueue(fallback);
 
     public async ValueTask DisposeAsync()
     {

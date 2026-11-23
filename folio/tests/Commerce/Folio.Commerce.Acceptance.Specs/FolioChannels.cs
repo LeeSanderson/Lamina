@@ -1,6 +1,6 @@
 namespace Folio.Commerce.Acceptance.Specs;
 
-public static class FolioChannels
+internal static class FolioChannels
 {
-    public static readonly string Api = "api";
+    internal const string Api = "api";
 }

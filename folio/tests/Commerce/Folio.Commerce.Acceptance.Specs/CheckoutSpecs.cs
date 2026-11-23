@@ -1,6 +1,9 @@
+using Lamina.XunitV3;
+
 namespace Folio.Commerce.Acceptance.Specs;
 
-public sealed class CheckoutSpecs : FolioSpec
+[Channels(FolioChannels.Api)]
+public abstract class CheckoutSpecs : FolioSpec
 {
     [Fact]
     public async Task OrderIsRejectedAndStockReleasedWhenPaymentDeclined()

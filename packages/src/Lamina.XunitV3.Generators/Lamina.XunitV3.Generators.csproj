@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Roslyn loads generators on every host, including the .NET Framework one in Visual Studio, so this targets netstandard2.0. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="PolySharp" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lamina.XunitV3.Tests" />
+  </ItemGroup>
+
+</Project>

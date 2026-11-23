@@ -18,6 +18,28 @@ public sealed class SutProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task WithNoProviderConfiguredAspireStartsTheSutWhenItIsRegistered()
+    {
+        var aspire = new List<string>();
+        var suite = new TestSuite(b => b.UseSut(sut => sut.AddProvider("aspire", _ => new FakeSut(aspire)))) { Settings = _settings.FullName };
+
+        await using var run = await suite.StartAsync(TestContext.Current.CancellationToken);
+
+        aspire.ShouldContain("sut started");
+        suite.Events.ShouldNotContain("sut started");
+    }
+
+    [Fact]
+    public async Task WithNoProviderConfiguredAndNoAspireTheOnlyRegisteredProviderStartsTheSut()
+    {
+        var suite = new TestSuite { Settings = _settings.FullName };
+
+        await using var run = await suite.StartAsync(TestContext.Current.CancellationToken);
+
+        suite.Events.ShouldContain("sut started");
+    }
+
+    [Fact]
     public async Task AnUnregisteredProviderNameFailsTheRunListingTheRegisteredNames()
     {
         await File.WriteAllTextAsync(Path.Combine(_settings.FullName, "appsettings.json"), """{ "Lamina": { "Sut": { "Provider": "aspir" } } }""", TestContext.Current.CancellationToken);

@@ -5,6 +5,7 @@ using Lamina;
 using Lamina.Dsl;
 using Lamina.Stubs;
 using Lamina.Sut.Aspire;
+using Lamina.Sut.Deployed;
 using Lamina.XunitV3;
 
 [assembly: AssemblyFixture(typeof(LaminaFixture<FolioSuite>))]
@@ -15,9 +16,9 @@ public sealed class FolioSuite : LaminaSuite
 {
     protected override void Configure(LaminaBuilder builder) =>
         builder
-            .UseSut(sut => sut.Aspire<Projects.Folio_AppHost>("--Profile", "acceptance"))
+            .UseSut(sut => sut.Aspire<Projects.Folio_AppHost>("--Profile", "acceptance").OrDeployed())
             .AddChannel(FolioChannels.Api, isDefault: true)
-            .AddApiDrivers()
+            .AddApiDrivers(FolioChannels.Api)
             .AddStub<PaymentProviderStub>()
             .AddDslsFromAssemblyOf<CatalogueDsl>();
 }
