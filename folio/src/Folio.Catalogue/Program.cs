@@ -9,6 +9,7 @@ builder.AddNpgsqlDbContext<CatalogueDbContext>("catalogue-db");
 var app = builder.Build();
 app.MapDefaultEndpoints();
 app.MapBookEndpoints();
+app.MapReservationEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

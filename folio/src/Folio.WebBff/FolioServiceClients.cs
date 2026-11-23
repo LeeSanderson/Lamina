@@ -11,6 +11,9 @@ internal static class FolioServiceClients
         builder.Services.AddHttpClient<CatalogueClient>(client =>
                 client.BaseAddress = new Uri(builder.Configuration.GetRequiredSection("Clients:Catalogue").Value!))
             .AddHttpMessageHandler<SubjectForwardingHandler>();
+        builder.Services.AddHttpClient<OrderingClient>(client =>
+                client.BaseAddress = new Uri(builder.Configuration.GetRequiredSection("Clients:Ordering").Value!))
+            .AddHttpMessageHandler<SubjectForwardingHandler>();
     }
 
     private sealed class SubjectForwardingHandler(IHttpContextAccessor httpContextAccessor) : DelegatingHandler

@@ -11,4 +11,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapDefaultEndpoints();
 app.MapBookEndpoints();
+app.MapOrderEndpoints();
 await app.RunAsync();
