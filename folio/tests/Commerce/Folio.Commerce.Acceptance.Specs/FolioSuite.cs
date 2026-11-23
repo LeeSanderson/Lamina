@@ -9,6 +9,7 @@ using Lamina.Sut.Deployed;
 using Lamina.XunitV3;
 
 [assembly: AssemblyFixture(typeof(LaminaFixture<FolioSuite>))]
+[assembly: TestFramework(typeof(LaminaTestFramework<FolioSuite>))]
 
 namespace Folio.Commerce.Acceptance.Specs;
 
