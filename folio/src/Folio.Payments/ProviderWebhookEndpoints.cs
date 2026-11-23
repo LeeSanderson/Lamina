@@ -36,7 +36,7 @@ internal static class ProviderWebhookEndpoints
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        await ordering.RecordPaymentConfirmedAsync(payment.OrderId, cancellationToken);
+        await ordering.RecordPaymentOutcomeAsync(payment.OrderId, PaymentOutcome.Confirmed, cancellationToken);
         return Results.Ok();
     }
 

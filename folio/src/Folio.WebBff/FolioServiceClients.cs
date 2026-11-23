@@ -1,3 +1,5 @@
+using Folio.ServiceDefaults;
+
 namespace Folio.WebBff;
 
 internal static class FolioServiceClients
@@ -8,11 +10,9 @@ internal static class FolioServiceClients
     {
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddTransient<SubjectForwardingHandler>();
-        builder.Services.AddHttpClient<CatalogueClient>(client =>
-                client.BaseAddress = new Uri(builder.Configuration.GetRequiredSection("Clients:Catalogue").Value!))
+        builder.Services.AddHttpClient<CatalogueClient>(client => client.BaseAddress = builder.Configuration.ClientAddress("Catalogue"))
             .AddHttpMessageHandler<SubjectForwardingHandler>();
-        builder.Services.AddHttpClient<OrderingClient>(client =>
-                client.BaseAddress = new Uri(builder.Configuration.GetRequiredSection("Clients:Ordering").Value!))
+        builder.Services.AddHttpClient<OrderingClient>(client => client.BaseAddress = builder.Configuration.ClientAddress("Ordering"))
             .AddHttpMessageHandler<SubjectForwardingHandler>();
     }
 

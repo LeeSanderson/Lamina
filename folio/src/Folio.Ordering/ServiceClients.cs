@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Serialization;
+using Folio.ServiceDefaults;
 
 namespace Folio.Ordering;
 
@@ -7,13 +8,10 @@ internal static class ServiceClients
 {
     internal static void AddServiceClients(this WebApplicationBuilder builder)
     {
-        builder.Services.AddHttpClient<CustomersClient>(client => client.BaseAddress = ClientAddress(builder, "Customers"));
-        builder.Services.AddHttpClient<CatalogueClient>(client => client.BaseAddress = ClientAddress(builder, "Catalogue"));
-        builder.Services.AddHttpClient<PaymentsClient>(client => client.BaseAddress = ClientAddress(builder, "Payments"));
+        builder.Services.AddHttpClient<CustomersClient>(client => client.BaseAddress = builder.Configuration.ClientAddress("Customers"));
+        builder.Services.AddHttpClient<CatalogueClient>(client => client.BaseAddress = builder.Configuration.ClientAddress("Catalogue"));
+        builder.Services.AddHttpClient<PaymentsClient>(client => client.BaseAddress = builder.Configuration.ClientAddress("Payments"));
     }
-
-    private static Uri ClientAddress(WebApplicationBuilder builder, string service) =>
-        new(builder.Configuration.GetRequiredSection($"Clients:{service}").Value!);
 }
 
 internal sealed class CustomersClient(HttpClient http)

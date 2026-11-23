@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Folio.ServiceDefaults;
 
 namespace Folio.Payments;
 
@@ -86,7 +87,7 @@ internal static class PaymentProviderRegistration
         var timeout = builder.Configuration.GetValue<TimeSpan?>("PaymentProvider:Timeout") ?? DefaultTimeout;
         var client = builder.Services.AddHttpClient<PaymentProviderClient>(http =>
         {
-            http.BaseAddress = new Uri(builder.Configuration.GetRequiredSection("Clients:PaymentProvider").Value!);
+            http.BaseAddress = builder.Configuration.ClientAddress("PaymentProvider");
             http.Timeout = timeout;
         });
 
