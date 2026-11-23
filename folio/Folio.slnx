@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Folio.AppHost/Folio.AppHost.csproj" />
     <Project Path="src/Folio.Catalogue/Folio.Catalogue.csproj" />
+    <Project Path="src/Folio.ServiceDefaults/Folio.ServiceDefaults.csproj" />
+    <Project Path="src/Folio.WebBff/Folio.WebBff.csproj" />
   </Folder>
 </Solution>
