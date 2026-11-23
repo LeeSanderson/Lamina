@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\packages\src\Lamina.Drivers.Http\Lamina.Drivers.Http.csproj" />
+    <ProjectReference Include="..\Folio.Commerce.Acceptance.Dsl\Folio.Commerce.Acceptance.Dsl.csproj" />
+  </ItemGroup>
+
+</Project>
