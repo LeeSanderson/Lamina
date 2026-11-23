@@ -1,0 +1,3 @@
+# The channel generator compiles against Microsoft.CodeAnalysis.CSharp 5.0.0
+
+A source generator only loads in a compiler at least as new as the Roslyn it references. `Lamina.XunitV3.Generators` references Microsoft.CodeAnalysis.CSharp 5.0.0, the version that shipped with .NET 10 GA, so it loads in every .NET 10 SDK and IDE a consumer may have. Moving to a newer Roslyn would buy no API the generator needs and would break consumers on older SDK 10 bands. So `Microsoft.CodeAnalysis.` is permanently excluded from the `outdated` check in `.github/workflows/ci.yml`, with no issue to remove it. Revisit only when Lamina's minimum SDK moves.
