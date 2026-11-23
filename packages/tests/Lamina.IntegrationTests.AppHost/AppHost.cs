@@ -1,5 +1,7 @@
 using Lamina.Stubs.WireMock;
 
+const string service = "../Lamina.IntegrationTests.Service";
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 builder.AddContainer("payment-provider", WireMockImage.Image)
@@ -7,11 +9,11 @@ builder.AddContainer("payment-provider", WireMockImage.Image)
     .WithHttpEndpoint(targetPort: 80, name: "http")
     .WithHttpHealthCheck("/__admin/health");
 
-builder.AddDotnetProject("greeter", "../Lamina.IntegrationTests.Service")
+builder.AddDotnetProject("greeter", service)
     .WithEnvironment("Greeting", builder.Configuration["Greeting"] ?? "hello")
     .WithHttpHealthCheck("/health");
 
-builder.AddDotnetProject("late", "../Lamina.IntegrationTests.Service")
+builder.AddDotnetProject("late", service)
     .WithEnvironment("HealthyAfter", builder.Configuration["LateBy"] ?? "00:00:03")
     .WithHttpHealthCheck("/health");
 
