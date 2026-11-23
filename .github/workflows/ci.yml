@@ -103,3 +103,131 @@ jobs:
             echo "::endgroup::"
           done
           exit "$status"
+
+  # The three jobs below run test projects with .github/scripts/run-xunit.sh, which uses each
+  # project's own xUnit runner so Lamina's run-start and teardown lines reach the log, and
+  # writes TRX, xUnit XML and the full host and resource logs to $TEST_RESULTS for upload.
+
+  integration-tests:
+    needs: [build, outdated]
+    runs-on: ubuntu-latest
+    env:
+      TEST_RESULTS: ${{ github.workspace }}/test-results
+      PROJECT: packages/tests/Lamina.IntegrationTests
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Build
+        run: dotnet build "$PROJECT" -c Release
+      - name: Run integration tests
+        # Needs Docker, which ubuntu-latest has.
+        run: bash .github/scripts/run-xunit.sh "$PROJECT" integration-tests
+      - name: Upload test results and logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-tests-results
+          path: test-results/
+          retention-days: 14
+
+  acceptance-aspire:
+    needs: [build, outdated]
+    runs-on: ubuntu-latest
+    env:
+      TEST_RESULTS: ${{ github.workspace }}/test-results
+      SPECS: folio/tests/Commerce/Folio.Commerce.Acceptance.Specs
+      BROKEN_SPEC: Folio.Commerce.Acceptance.Specs.BrokenSpecs.StockNeverReachesWhatTheSpecExpects
+      # Seconds. A cold runner pulls the Postgres and WireMock images during start-up.
+      Lamina__Sut__ReadyTimeout: "300"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Build
+        run: dotnet build "$SPECS" -c Release
+      - name: Run the Commerce specs 50 times over through Sut.Aspire
+        env:
+          Lamina__Repeat: "50"
+        run: |
+          bash .github/scripts/run-xunit.sh "$SPECS" commerce-aspire
+          python3 .github/scripts/check-results.py repeat "$TEST_RESULTS/commerce-aspire.xml" 50
+      - name: Run the Broken spec on its own and check its failure message
+        # Plan.md §10 criterion 2. Named by method, because BrokenSpecs holds more than one
+        # explicit failing spec and only this one fails in Eventually.
+        if: ${{ success() || failure() }}
+        run: |
+          if bash .github/scripts/run-xunit.sh "$SPECS" broken-spec -method "$BROKEN_SPEC" -explicit only; then
+            echo "::error::The Broken spec passed. It must fail."
+            exit 1
+          fi
+          python3 .github/scripts/check-results.py broken "$TEST_RESULTS/broken-spec.xml" "$BROKEN_SPEC"
+      - name: Upload test results and logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: acceptance-aspire-results
+          path: test-results/
+          retention-days: 14
+
+  acceptance-deployed:
+    needs: [build, outdated]
+    runs-on: ubuntu-latest
+    env:
+      TEST_RESULTS: ${{ github.workspace }}/test-results
+      SPECS: folio/tests/Commerce/Folio.Commerce.Acceptance.Specs
+      APPHOST: folio/src/Folio.AppHost
+      # Seconds. Readiness polling waits while the AppHost pulls images and starts every service.
+      Lamina__Sut__ReadyTimeout: "300"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Build
+        # The AppHost builds in Debug: dotnet run of an AppHost goes through the Aspire CLI,
+        # which starts bin/Debug whatever -c says.
+        run: |
+          dotnet build "$SPECS" -c Release
+          dotnet build "$APPHOST"
+      - name: Start the Folio AppHost in the background
+        run: |
+          mkdir -p "$TEST_RESULTS"
+          nohup dotnet run --project "$APPHOST" --launch-profile acceptance --no-build > "$TEST_RESULTS/apphost.log" 2>&1 &
+          echo "APPHOST_PID=$!" >> "$GITHUB_ENV"
+      - name: Run the Commerce specs through Sut.Deployed
+        env:
+          Lamina__Sut__Provider: deployed
+        run: bash .github/scripts/run-xunit.sh "$SPECS" commerce-deployed
+      - name: Collect container logs
+        if: ${{ failure() }}
+        run: |
+          mkdir -p "$TEST_RESULTS/containers"
+          docker ps -a > "$TEST_RESULTS/containers/ps.txt"
+          for container in $(docker ps -aq); do
+            name=$(docker inspect --format '{{.Name}}' "$container" | tr -d /)
+            docker logs "$container" > "$TEST_RESULTS/containers/$name.log" 2>&1
+          done
+      - name: Stop the AppHost
+        if: ${{ always() && env.APPHOST_PID != '' }}
+        run: |
+          kill -INT "$APPHOST_PID" || true
+          timeout 60 tail --pid="$APPHOST_PID" -f /dev/null || true
+      - name: Collect AppHost and service logs
+        # The AppHost's console shows no resource logs. The Aspire CLI log has the resource state
+        # changes; DCP's session folders hold each service's console output (<id>_out, with
+        # resource-executable-<id>.log naming the project).
+        if: ${{ failure() }}
+        run: |
+          cp -r ~/.aspire/logs "$TEST_RESULTS/aspire-cli-logs" || true
+          mkdir -p "$TEST_RESULTS/dcp"
+          cp -r "${TMPDIR:-/tmp}"/aspire-dcp* "$TEST_RESULTS/dcp/" || true
+      - name: Upload test results and logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: acceptance-deployed-results
+          path: test-results/
+          retention-days: 14
