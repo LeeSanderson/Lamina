@@ -38,6 +38,20 @@ public sealed class EndpointClientTests
         Should.Throw<InvalidOperationException>(() => clients.For("payments")).Message.ShouldContain("Registered: web-bff.");
     }
 
+    [Fact]
+    public async Task AClientForAnEndpointTheSutDoesNotHaveFailsTheRunAtStart()
+    {
+        var error = await Should.ThrowAsync<InvalidOperationException>(() => HttpSuite.StartAsync(
+            lamina =>
+            {
+                lamina.AddHttpClient("web-bff");
+                lamina.AddHttpClient<PaymentsApi>("payments");
+            },
+            endpoints: ["web-bff"]));
+
+        error.Message.ShouldBe("The suite needs SUT endpoints that SUT provider 'fake' doesn't have: payments. It has: web-bff.");
+    }
+
     public sealed class PaymentsApi(HttpClient http)
     {
         public async Task<Echo> GetAsync(string path) =>

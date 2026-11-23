@@ -58,6 +58,8 @@ public abstract class LaminaStub : IAsyncDisposable
         GC.SuppressFinalize(this);
     }
 
+    internal string EndpointName => Resource;
+
     internal Task InstallDefaultsAtRunStartAsync() => InstallDefaults();
 
     internal void Attach(SpecScope? scope, StubContext context)

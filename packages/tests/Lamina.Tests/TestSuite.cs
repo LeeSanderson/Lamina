@@ -13,6 +13,9 @@ internal sealed class TestSuite(Action<LaminaBuilder> configure) : LaminaSuite
 
     public string? Settings { get; init; }
 
+    // The endpoint names the fake SUT lists; none unless a test sets them.
+    public IReadOnlyCollection<string> Endpoints { get; init; } = [];
+
     protected override string SettingsDirectory => Settings ?? base.SettingsDirectory;
 
     public static Task<LaminaRun> StartAsync() => new TestSuite().StartAsync(TestContext.Current.CancellationToken);
@@ -23,7 +26,7 @@ internal sealed class TestSuite(Action<LaminaBuilder> configure) : LaminaSuite
     protected override void Configure(LaminaBuilder builder)
     {
         builder
-            .UseSut(sut => sut.AddProvider("fake", _ => new FakeSut(Events)))
+            .UseSut(sut => sut.AddProvider("fake", _ => new FakeSut(Events) { EndpointNames = Endpoints }))
             .AddChannel("api", isDefault: true)
             .Services.AddSingleton(Events);
         configure(builder);

@@ -21,5 +21,6 @@ public sealed class FolioSuite : LaminaSuite
             .AddChannel(FolioChannels.Api, isDefault: true)
             .AddApiDrivers(FolioChannels.Api)
             .AddStub<PaymentProviderStub>()
+            .RequireEndpoint("payments") // The payment provider stub's webhooks go to Payments.
             .AddDslsFromAssemblyOf<CatalogueDsl>();
 }

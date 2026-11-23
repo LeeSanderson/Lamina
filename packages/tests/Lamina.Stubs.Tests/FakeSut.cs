@@ -4,6 +4,8 @@ internal sealed class FakeSut(List<string> events) : ISystemUnderTest, ISutProvi
 {
     public IReadOnlyDictionary<string, string> Metadata { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
+    public IReadOnlyCollection<string> EndpointNames { get; init; } = [];
+
     public Uri Endpoint(string name) => new($"http://{name}.test");
 
     public Task<ISystemUnderTest> StartAsync(CancellationToken ct) => Task.FromResult<ISystemUnderTest>(this);

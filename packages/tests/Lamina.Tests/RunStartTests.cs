@@ -59,6 +59,61 @@ public sealed class RunStartTests
         scope.Services.GetRequiredService<SpecScope>().ShouldBeSameAs(scope);
     }
 
+    [Fact]
+    public async Task ARequiredEndpointTheSutDoesNotHaveFailsTheRunBeforeReadiness()
+    {
+        var suite = new TestSuite(b => b.RequireEndpoint("web-bff").RequireEndpoint("payments").RequireEndpoint("payment-provider"))
+        {
+            Endpoints = ["web-bff", "catalogue"],
+        };
+
+        var error = await Should.ThrowAsync<InvalidOperationException>(() => suite.StartAsync(TestContext.Current.CancellationToken));
+
+        error.Message.ShouldBe(
+            "The suite needs SUT endpoints that SUT provider 'fake' doesn't have: payments, payment-provider. " +
+            "It has: web-bff, catalogue.");
+        suite.Events.ShouldBe(["sut started", "sut disposed"]);
+    }
+
+    [Fact]
+    public async Task AnEndpointRequiredTwiceIsCheckedOnce()
+    {
+        var suite = new TestSuite(b => b.RequireEndpoint("payments").RequireEndpoint("payments")) { Endpoints = ["web-bff"] };
+
+        var error = await Should.ThrowAsync<InvalidOperationException>(() => suite.StartAsync(TestContext.Current.CancellationToken));
+
+        error.Message.ShouldStartWith("The suite needs SUT endpoints that SUT provider 'fake' doesn't have: payments. ");
+    }
+
+    [Fact]
+    public async Task ARequiredEndpointCanBeNamedFromTheRunsServices()
+    {
+        var suite = new TestSuite(b =>
+        {
+            b.Services.AddSingleton(new EndpointName("payments"));
+            b.RequireEndpoint(sp => sp.GetRequiredService<EndpointName>().Value);
+        })
+        {
+            Endpoints = ["web-bff"],
+        };
+
+        var error = await Should.ThrowAsync<InvalidOperationException>(() => suite.StartAsync(TestContext.Current.CancellationToken));
+
+        error.Message.ShouldStartWith("The suite needs SUT endpoints that SUT provider 'fake' doesn't have: payments. ");
+    }
+
+    [Fact]
+    public async Task RequiredEndpointsAreNotCheckedAgainstASutThatListsNoEndpoints()
+    {
+        var suite = new TestSuite(b => b.RequireEndpoint("payments"));
+
+        await using var run = await suite.StartAsync(TestContext.Current.CancellationToken);
+
+        run.Sut.Endpoint("payments").ShouldBe(new Uri("http://payments.test"));
+    }
+
+    private sealed record EndpointName(string Value);
+
     private static List<string> Events(IServiceProvider services) => services.GetRequiredService<List<string>>();
 
     private sealed class RecordingHook(string name, List<string> events) : IRunStartHook, IAsyncDisposable

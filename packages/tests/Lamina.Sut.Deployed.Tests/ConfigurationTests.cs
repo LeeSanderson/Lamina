@@ -60,6 +60,23 @@ public sealed class ConfigurationTests
         neverReady.Requests.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task AnEndpointTheSuiteNeedsButIsNotConfiguredFailsTheRunAtOnce()
+    {
+        await using var neverReady = await FakeService.StartAsync(failuresBeforeReady: 1000);
+
+        var error = await Should.ThrowAsync<InvalidOperationException>(() => DeployedSuite.StartNeedingAsync(
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Lamina:Sut:Deployed:Endpoints:web-bff"] = neverReady.BaseAddress.ToString(),
+                ["Lamina:Sut:Deployed:Readiness:web-bff"] = "/health",
+            },
+            needs: ["web-bff", "payments"]));
+
+        error.Message.ShouldBe("The suite needs SUT endpoints that SUT provider 'deployed' doesn't have: payments. It has: web-bff.");
+        neverReady.Requests.ShouldBeEmpty();
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("localhost:5180")]

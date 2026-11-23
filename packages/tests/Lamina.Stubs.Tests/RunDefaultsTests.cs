@@ -35,6 +35,14 @@ public sealed class RunDefaultsTests
     }
 
     [Fact]
+    public async Task AStubForAnEndpointTheSutDoesNotHaveFailsTheRunBeforeDefaultsAreInstalled()
+    {
+        var error = await Should.ThrowAsync<InvalidOperationException>(() => StubSuite.StartAsync(endpoints: ["web-bff"]));
+
+        error.Message.ShouldBe("The suite needs SUT endpoints that SUT provider 'fake' doesn't have: payment-provider. It has: web-bff.");
+    }
+
+    [Fact]
     public async Task TheStubFindsItsEndpointOnTheSutByResource()
     {
         var (_, run) = await StubSuite.StartAsync();

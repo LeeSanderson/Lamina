@@ -14,6 +14,8 @@ internal sealed class FakeSut : ISystemUnderTest, ISutProvider
 
     public IReadOnlyDictionary<string, string> Metadata { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
+    public IReadOnlyCollection<string> EndpointNames { get; init; } = [];
+
     public Uri Endpoint(string name) => new(_root ?? throw new InvalidOperationException("The fake SUT isn't started."), $"{name}/");
 
     public async Task<ISystemUnderTest> StartAsync(CancellationToken ct)

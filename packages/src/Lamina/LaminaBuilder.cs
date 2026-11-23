@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Lamina;
 
@@ -14,6 +13,7 @@ public sealed class LaminaBuilder
     private readonly SutBuilder _sut;
     private readonly List<string> _channels = [];
     private readonly Dictionary<Type, List<string>> _driverChannels = [];
+    private readonly RequiredEndpoints _requiredEndpoints = new();
     private string? _defaultChannel;
 
     internal LaminaBuilder(IConfigurationRoot configuration)
@@ -76,22 +76,32 @@ public sealed class LaminaBuilder
         return this;
     }
 
+    /// <summary>
+    /// Declares that the suite uses the SUT endpoint <paramref name="name"/>. The run fails at start-up, before readiness, when
+    /// the started SUT lists its endpoints and this one isn't among them. Extension packages call it for the endpoints they register.
+    /// </summary>
+    public LaminaBuilder RequireEndpoint(string name)
+    {
+        _requiredEndpoints.Add(name);
+        return this;
+    }
+
+    /// <summary>
+    /// Declares a needed SUT endpoint whose name comes from the run's services, read once the SUT has started.
+    /// </summary>
+    public LaminaBuilder RequireEndpoint(Func<IServiceProvider, string> name)
+    {
+        _requiredEndpoints.Add(name);
+        return this;
+    }
+
     internal async Task<LaminaRun> StartAsync(CancellationToken cancellationToken)
     {
         var channels = new ChannelSet(
             _channels,
             _defaultChannel ?? throw new InvalidOperationException("No default channel. Call AddChannel(name, isDefault: true) in the suite's Configure."));
         var accessor = new SutAccessor();
-        Services.AddSingleton<IConfiguration>(_ => _configuration);
-        Services.AddSingleton(accessor);
-        Services.AddSingleton(channels);
-        Services.AddSingleton<ISystemUnderTest>(sp => new BorrowedSut(sp.GetRequiredService<SutAccessor>().Sut));
-        Services.AddScoped<SpecScopeHolder>();
-        Services.AddScoped(sp => sp.GetRequiredService<SpecScopeHolder>().Scope);
-        Services.TryAddSingleton(TimeProvider.System);
-        var multiplier = TimeoutMultiplier.Read(_configuration);
-        Services.AddScoped(sp => new Eventually(sp.GetRequiredService<SpecScope>(), sp.GetRequiredService<TimeProvider>(), multiplier));
-
+        RunServices.Add(Services, _configuration, accessor, channels);
         var services = Services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         ISystemUnderTest? system = null;
         try
@@ -100,6 +110,7 @@ public sealed class LaminaBuilder
             var (providerName, provider) = _sut.Select(services);
             system = await provider.StartAsync(cancellationToken).ConfigureAwait(false);
             accessor.Sut = system;
+            _requiredEndpoints.Check(providerName, system, services);
             await system.WaitUntilReadyAsync(cancellationToken).ConfigureAwait(false);
             var startLine = RunDiagnostics.StartLine(providerName, system, TimeProvider.System.GetElapsedTime(started));
             foreach (var hook in services.GetServices<IRunStartHook>())

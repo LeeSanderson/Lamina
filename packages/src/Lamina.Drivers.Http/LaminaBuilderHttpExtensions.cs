@@ -11,13 +11,14 @@ namespace Lamina.Drivers.Http;
 public static class LaminaBuilderHttpExtensions
 {
     /// <summary>
-    /// Registers a client for the SUT endpoint <paramref name="endpoint"/>, such as <c>web-bff</c>. Get it from a spec's services
-    /// with <see cref="SutHttpClients.For"/>. The returned builder adds handlers to its pipeline.
+    /// Registers a client for the SUT endpoint <paramref name="endpoint"/>, such as <c>web-bff</c>, and requires the SUT to have
+    /// it. Get it from a spec's services with <see cref="SutHttpClients.For"/>. The returned builder adds handlers to its pipeline.
     /// </summary>
     public static IHttpClientBuilder AddHttpClient(this LaminaBuilder builder, string endpoint)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrEmpty(endpoint);
+        builder.RequireEndpoint(endpoint);
         builder.Services.TryAddScoped(sp => new SutHttpClients(
             sp.GetRequiredService<SpecScope>(),
             sp.GetRequiredService<ISystemUnderTest>(),
