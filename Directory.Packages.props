@@ -4,6 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Not an exact range ([x]): dotnet outdated never reports updates past one. See docs/spikes/s7-repo-scaffold.md. -->
-    <GlobalPackageReference Include="Opinionated.DotNet.CodingStandards" Version="0.0.21" />
+    <GlobalPackageReference Include="Opinionated.DotNet.CodingStandards" Version="0.0.22" />
   </ItemGroup>
 </Project>
