@@ -1,13 +1,22 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using WireMock.Server;
+using WireMock.Settings;
 
 namespace Lamina.Stubs.WireMock.Tests;
 
 // An in-process WireMock.Net server, and the test's own view of it: what the SUT would send, and what mappings exist.
 public sealed class ProviderServer : IAsyncDisposable
 {
-    private readonly WireMockServer _server = WireMockServer.StartWithAdminInterface();
+    // Bound to loopback only. WireMock's default listens on every interface (http://*:port),
+    // which makes the Windows firewall prompt for each new test executable path.
+    private readonly WireMockServer _server = WireMockServer.Start(new WireMockServerSettings
+    {
+        Urls = [$"http://127.0.0.1:{FreeLoopbackPort()}"],
+        StartAdminInterface = true,
+    });
+
     private readonly HttpClient _http = new();
 
     public Uri Url => new(_server.Url!);
@@ -49,6 +58,22 @@ public sealed class ProviderServer : IAsyncDisposable
         _server.Stop();
         _server.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    private static int FreeLoopbackPort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return listener.LocalEndpoint is IPEndPoint endpoint
+                ? endpoint.Port
+                : throw new InvalidOperationException("The loopback listener has no IP endpoint.");
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     private sealed class WireMockSuite(Uri provider) : LaminaSuite
