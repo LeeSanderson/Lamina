@@ -21,3 +21,21 @@ _Avoid_: service URL, base address
 **Run start**:
 The moment after the system under test is ready and before any spec runs, when run-level set-up such as stub defaults happens once.
 _Avoid_: global setup, bootstrap
+
+### Channels and DSLs
+
+**Default channel**:
+The suite's fastest channel, through which arrangement always runs and on which a capability with no driver for the spec's channel falls back.
+_Avoid_: primary channel, base channel
+
+**Actor DSL**:
+A DSL whose steps run through the spec's own channel, because they are the behaviour under test.
+_Avoid_: channel DSL, behaviour DSL
+
+**Arrangement DSL**:
+A DSL pinned to the default channel, whatever the spec's channel: it puts the system into the state a spec starts from, and may check outcomes the spec's channel needn't show. It acts as its own arranging user, never as the actor the spec signed in as.
+_Avoid_: setup DSL, fixture DSL, pinned DSL
+
+**Arrangement pinning**:
+Running every step of an arrangement DSL through the default channel, so setup stays fast and the spec's channel is spent only on the behaviour under test.
+_Avoid_: channel override
