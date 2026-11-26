@@ -39,3 +39,17 @@ _Avoid_: setup DSL, fixture DSL, pinned DSL
 **Arrangement pinning**:
 Running every step of an arrangement DSL through the default channel, so setup stays fast and the spec's channel is spent only on the behaviour under test.
 _Avoid_: channel override
+
+### Correlation
+
+**Test context**:
+The test ID (and, from phase 3, the time offset) that travels with a spec's work through the system under test, so everything that work causes can be traced back to the spec.
+_Avoid_: correlation context, ambient context
+
+**Context carry**:
+Taking the test context with a piece of work across a hop the platform doesn't propagate on its own, such as an in-process queue, a stored row or a consumed message.
+_Avoid_: context flow, propagation
+
+**Runtime check**:
+The round trip at run start that proves each named service has the runtime enabled and receives the test context, before any spec runs.
+_Avoid_: echo test, correlation probe
