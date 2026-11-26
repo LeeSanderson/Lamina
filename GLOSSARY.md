@@ -40,6 +40,12 @@ _Avoid_: setup DSL, fixture DSL, pinned DSL
 Running every step of an arrangement DSL through the default channel, so setup stays fast and the spec's channel is spent only on the behaviour under test.
 _Avoid_: channel override
 
+### Identity
+
+**Arranging user**:
+The identity an arrangement DSL acts as, one per spec. It is never one of the spec's actors and holds whatever roles arranging needs.
+_Avoid_: admin, setup user, system user
+
 ### Correlation
 
 **Test context**:
