@@ -40,6 +40,12 @@ _Avoid_: setup DSL, fixture DSL, pinned DSL
 Running every step of an arrangement DSL through the default channel, so setup stays fast and the spec's channel is spent only on the behaviour under test.
 _Avoid_: channel override
 
+### Failures
+
+**Failure evidence**:
+The files and text attached to a failing spec to explain it, such as a browser trace, a screenshot or a stub's journal for that spec, gathered only from what the spec used.
+_Avoid_: diagnostics, artefacts
+
 ### Identity
 
 **Arranging user**:
