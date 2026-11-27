@@ -14,6 +14,10 @@ _Avoid_: app, environment, target
 The part of a suite that starts or locates the system under test once per run and reports its endpoints. Which provider a run uses is chosen by configuration, never by code.
 _Avoid_: host, launcher, SUT mode
 
+**Deployable unit**:
+A group of services released and started together, such as Commerce or Fulfilment. A suite's system under test is one or more units.
+_Avoid_: bounded context, subsystem, app
+
 **Endpoint**:
 A named address on the system under test, named after the deployable unit or stub it reaches, such as `web-bff` or `payment-provider`. The same name is used however the system was started.
 _Avoid_: service URL, base address
