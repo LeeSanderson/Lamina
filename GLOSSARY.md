@@ -44,6 +44,20 @@ _Avoid_: setup DSL, fixture DSL, pinned DSL
 Running every step of an arrangement DSL through the default channel, so setup stays fast and the spec's channel is spent only on the behaviour under test.
 _Avoid_: channel override
 
+### Layers
+
+**Layer**:
+One of the four tiers a suite's code is split into (spec, DSL, driver) above the system under test. Each acceptance project belongs to exactly one, and each may lean only on the tier below.
+_Avoid_: tier, level
+
+**Capability**:
+What a DSL asks of the system through its drivers, stated as an interface the DSL takes in and each channel's driver implements. A DSL never hands a capability on to specs.
+_Avoid_: driver interface, port
+
+**Infrastructure**:
+The libraries that reach the system under test or a stub directly, such as a browser, an HTTP client, a broker client or Lamina's own drivers. Specs and DSLs never touch it; only the suite class that wires drivers may name it.
+_Avoid_: plumbing, transport
+
 ### Failures
 
 **Failure evidence**:
